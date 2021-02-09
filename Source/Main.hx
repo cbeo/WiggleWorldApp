@@ -152,7 +152,7 @@ class DrawingScreen extends Sprite
         (stamp - timestamp > sampleRate) &&
         Point.distance(pt, path[path.length - 1]) >= sampleGap)
       {
-        var selfIntersection = PathTools.findSelfIntersection(path, pt);
+        var selfIntersection = GeomTools.findSelfIntersection(path, pt);
         timestamp = stamp;
         path.push( pt );
         graphics.lineTo( pt.x, pt.y);
@@ -216,10 +216,7 @@ class GeomTools
         return null;
       }
   }
-}
 
-class PathTools
-{
   // given a path and a point, check of the line between the last
   // point in tha path and the provided point intersects the path.  If
   // it does, the index of the path point before the
@@ -231,7 +228,7 @@ class PathTools
       {
         var last = path.length -1;
         for (i in 1...last)
-          if (GeomTools.segmentsIntersect( path[i-1], path[i], path[last], pt))
+          if ( segmentsIntersect( path[i-1], path[i], path[last], pt) )
             return i-1;
       }
     return null;
