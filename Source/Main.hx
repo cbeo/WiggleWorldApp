@@ -114,7 +114,6 @@ class DrawingScreen extends Sprite
   
   var path: Array<Point> = [];
 
-
   public function new ()
   {
     super();
@@ -122,13 +121,123 @@ class DrawingScreen extends Sprite
 
   /* Event Handling */
   
-  function onMouseDown (e) {}
-  function onMouseUp (e) {}
-  function onMouseOut (e) {}
-  function onMouseMove (e) {}
+  static inline var sampleRate:Float = 0.01;
+  static inline var sampleGap:Float = 5.0;
+
+  var drawing = false;
+  var timestamp:Float;
+
+  function onMouseDown (e)
+  {
+    drawing = true;
+    timestamp = haxe.Timer.stamp();
+    path = [ new Point(e.localX, e.localY) ];
+  }
+  
+  function onMouseUp (e)
+  {
+    drawing = false;
+  }
+  
+  function onMouseOut (e)
+  {
+    drawing = false;
+  }
+  
+  function onMouseMove (e)
+  {
+    var stamp = haxe.Timer.stamp();
+    var pt = new Point( e.localX, e.localY);
+    if (drawing &&
+        (stamp - timestamp > sampleRate) &&
+        Point.distance(pt, path[path.length - 1]) >= sampleGap)
+      {
+        var selfIntersection = PathTools.findSelfIntersection(path, pt);
+        timestamp = stamp;
+        path.push( pt );
+        graphics.lineTo( pt.x, pt.y);
+      }
+    
+  }
 
 }
 
+enum Line {
+  Vertical(xVal:Float);
+  Horizontal(yVal:Float);
+  Sloped(slop:Float,yIntercept:Float);
+}
+
+class GeomTools
+{
+
+  public static function lineOfSegment ( a:Point, b:Point ): Null<Line>
+  {
+    if (a.equals( b )) return null;
+    if (a.x == b.x) return Vertical(a.y);
+    if (a.y == b.y) return Horizontal(a.x);
+
+    var slope = (b.y - a.y) / (b.x - a.x);
+    var yIntercept = a.y - slope * a.x;
+    return Sloped(slope, yIntercept);
+  }
+
+  public static function isCounterClockwiseOrder(a:Point,b:Point,c:Point):Bool {
+    return (b.x - a.x) * (c.y - a.y) > (b.y - a.y) * (c.x - a.x);
+  }
+
+  public static function segmentsIntersect(a:Point,b:Point,c:Point,d:Point):Bool
+  {
+    return (isCounterClockwiseOrder( a, c, d) != isCounterClockwiseOrder(b, c, d)) &&
+      (isCounterClockwiseOrder( a ,b, c) != isCounterClockwiseOrder(a, b, d));
+  }
+
+  public static function linesIntersectAt(a:Point,b:Point,c:Point,d:Point):Null<Point>
+  {
+    switch ([lineOfSegment(a, b), lineOfSegment(c, d)])
+      {
+      case [Sloped(m1,b1), Sloped(m2,b2)]:
+        var x = (b2 - b1) / (m1 - m2);
+        var y = m1 * x + b1;
+        return new Point(x, y);
+
+      case [Sloped(m,b), Horizontal(y)] | [Horizontal(y) , Sloped(m, b)]:
+        var x = (y - b) / m;
+        return new Point(x,y);
+
+      case [Sloped(m,b), Vertical(x)] | [Vertical(x), Sloped(m,b)]:
+        var y = m * x + b;
+        return new Point(x, y);
+
+      case [Horizontal(y), Vertical(x)] | [Vertical(x), Horizontal(y)]:
+        return new Point(x, y);
+
+      default:
+        return null;
+      }
+  }
+}
+
+class PathTools
+{
+  // given a path and a point, check of the line between the last
+  // point in tha path and the provided point intersects the path.  If
+  // it does, the index of the path point before the
+  // intersection. Otherwise return null;
+  public static function findSelfIntersection
+  ( path:Array<Point>, pt:Point ) : Null<Int>
+  {
+    if (path != null && path.length > 0)
+      {
+        var last = path.length -1;
+        for (i in 1...last)
+          if (GeomTools.segmentsIntersect( path[i-1], path[i], path[last], pt))
+            return i-1;
+      }
+    return null;
+  }
+    
+}
 
 class Main extends Sprite
 {
