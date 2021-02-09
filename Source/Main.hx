@@ -35,8 +35,9 @@ typedef BoxConfig =
 
 class Button extends SimpleButton
 {
-  static var upColor:Int = 0xdddddd;
-  static var downAndOverColor:Int = 0xeeeeee;
+  static var overColor:Int = 0xdddddd;
+  static var upColor:Int = 0xeeeeee;
+  static var downColor:Int = 0xcccccc;
 
   static function textBox
   (text:String,
@@ -81,10 +82,11 @@ class Button extends SimpleButton
   {
     var textFormat = new TextFormat(null, 25);
 
-    var over = textBox(text, downAndOverColor, textFormat, 10.0, 50, 2 );
-    var up = textBox(text, upColor, textFormat, 10.0, 50, 2 );
+    var over = textBox(text, overColor, textFormat, 10.0, 50, 2 );
+    var up = textBox(text, upColor, textFormat, 10.0, 50, 2);
+    var down = textBox(text, downColor, textFormat, 10.0, 50, 2);
 
-    super( up , over, over, over);
+    super( up , over, down, over);
     this.enabled = true;
   }
 
