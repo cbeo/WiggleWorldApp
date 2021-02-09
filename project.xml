@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project>
+  <meta title="WiggleWorldApp"
+        package="space.toyful.wiggleworld"
+        version="1.0.0"
+        company="Toyful Space" />
+
+  <app main="Main" path="Export" file="WiggleWorldApp" />
+  
+  <source path="Source" />
+  
+  <haxelib name="openfl" />
+  
+  <assets path="Assets" rename="assets" />
+  
+</project>
