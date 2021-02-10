@@ -2,6 +2,7 @@ package;
 
 import openfl.display.Sprite;
 import openfl.geom.Point;
+import openfl.geom.Rectangle;
 import openfl.events.MouseEvent;
 import openfl.events.KeyboardEvent;
 import openfl.events.Event;
@@ -20,8 +21,8 @@ typedef PointType = { x:Float, y:Float};
 typedef HasVelocity =  {velocity: PointType};
 typedef Circle = PointType & {radius:Float};
 typedef HasColor = {color: Int};
+typedef ColoredCircle = HasColor & Circle;
 
-typedef MovingColoredCircle = Circle & HasVelocity & HasColor;
 
 
 class Button extends SimpleButton
@@ -85,14 +86,70 @@ class Button extends SimpleButton
 
 class Wiggler extends Sprite
 {
+  static inline var RADIUS_DRAW_THRESHHOLD = 25;
+  static inline var CIRCLE_TRIALS = 1000;
+
   var path:Array<Point> = [];
-  var circles:Array<MovingColoredCircle> = [];
+
+  var radiusGradient:Float = 4.0;
+  var radiiSizes:Int = 15;
+  var circles:Array<ColoredCircle> = [];
 
   public function new (path:Array<Point>)
   {
     super();
-    this.path = path;
+    this.path = GeomTools.translatePathToOrigin( path );
+    addCircles();
   }
+
+  // A circle is valid if it is contained within the boundary of the
+  // path and if it does not intersect any other circles.
+  function isValidCircle( circ:ColoredCircle ): Bool
+  {
+    return circleInsideClosedPath( circ) &&
+      !circleIntersectsCircles( circ );
+  }
+
+  function circleInsideClosedPath( circ ): Bool
+  {
+    return GeomTools.pointInsideClosedPath( circ, path) &&
+      !GeomTools.circleIntersectsPath(circ, path);
+  }
+  
+  function circleIntersectsCircles( circ ): Bool
+  {
+    for (c in circles)
+      if (GeomTools.circlesIntersect( c, circ))
+        return true;
+
+    return false;
+  }
+
+  function randomCircle( box:Rectangle, radius:Float): ColoredCircle
+  {
+    var pt = GeomTools.randomPointInRect( box );
+    return {x:pt.x, y:pt.y, color: Std.int(Math.random() * 0xFFFFFF), radius:radius};
+  }
+
+  function addCircles()
+  {
+    circles = [];
+    if (path.length > 2)
+      {
+        var bbox = GeomTools.pathBoundingBox( path );
+        var rad = radiusGradient * radiiSizes;
+        while (rad > 0)
+          {
+            for (i in 0 ... CIRCLE_TRIALS)
+              {
+                var circ = randomCircle( bbox, rad );
+                if (isValidCircle( circ )) circles.push(circ);
+              }
+            rad -= radiusGradient;
+          }
+      }
+  }
+
 }
 
 class DrawingScreen extends Sprite
@@ -102,6 +159,9 @@ class DrawingScreen extends Sprite
      suitable for passing in as the "skin" of a wiggler. */
   
   var path: Array<Point> = [];
+
+  var candidateWiggler:Wiggler;
+
   var holdPath:Bool = false;
 
   public function new ()
@@ -134,7 +194,6 @@ class DrawingScreen extends Sprite
 
   function onMouseDown (e)
   {
-    trace('onMouseDown');
     refresh();
     drawing = true;
     timestamp = haxe.Timer.stamp();
@@ -146,7 +205,7 @@ class DrawingScreen extends Sprite
 
   function refresh ()
   {
-    Actuate.stop(this);
+    Actuate.stop(this); 
     graphics.clear();
     alpha = 1.0;
     visible = true;
@@ -202,17 +261,17 @@ class DrawingScreen extends Sprite
                                           path[path.length -1], pt);
 
             path = path.slice( intersectIndex );
+
             if (intersectionPt != null)
               {
                 path.push(intersectionPt);
                 graphics.lineTo( intersectionPt.x, intersectionPt.y);
               }
             else
-              {
-                graphics.lineTo( pt.x, pt.y );
-              }
+              graphics.lineTo( pt.x, pt.y );
 
             clearAndRenderPath();
+            //createAndPresentWiggler();
             return; // to return early
           }
 
@@ -221,6 +280,9 @@ class DrawingScreen extends Sprite
         graphics.lineTo( pt.x, pt.y);
       }
   }
+
+
+  function createAndPresentWiggler() {}
 }
 
 enum Line {
@@ -232,9 +294,139 @@ enum Line {
 class GeomTools
 {
 
-  public static function lineOfSegment ( a:Point, b:Point ): Null<Line>
+  public static function circlesIntersect<C1:Circle,C2:Circle>(c1:C1,c2:C2):Bool
   {
-    if (a.equals( b )) return null;
+    var d = dist(c1,c2);
+    return d <= c1.radius || d <= c2.radius;
+  }
+
+  public static function pathBoundingBox( path:Array<Point> ):Null<Rectangle>
+  {
+    if (path.length ==0) return null;
+    var left  = path[0].x;
+    var right = left;
+    var top = path[0].y;
+    var bottom = top;
+
+    for (pt in path)
+      {
+        left = Math.min( left, pt.x);
+        right = Math.max( right, pt.x);
+        top = Math.min( top, pt.y);
+        bottom = Math.max( bottom, pt.y);
+      }
+    return new Rectangle(left, top, right - left, bottom - top);
+  }
+
+  public static function randomPointInRect( rect:Rectangle):Point
+  {
+    return new Point( Math.random() * rect.width + rect.x,
+                      Math.random() * rect.height + rect.y);    
+  }
+
+  // a point is inside a closed path if, when a linesegment connecting
+  // that point to the origin is drawn, the number of intersections
+  // of that line and the path is odd.
+  public static function pointInsideClosedPath< T: PointType> (pt: T, path:Array<Point>):Bool
+  {
+    if (path.length < 2) return false;
+    
+    var intersections = 0;
+    var origin : PointType = {x:0, y:0};
+
+    for (i in 0...path.length - 1)
+      if (segmentsIntersect( origin, pt, path[i], path[i + 1]))
+        intersections += 1;
+
+    if (segmentsIntersect( origin, pt, path[path.length - 1], path[0]))
+      intersections += 1;
+
+    return intersections % 2 == 1;
+  }
+
+  public static function circleIntersectsPath<T:Circle>
+  ( circ:T, path:Array<Point>):Bool
+  {
+    for (i in 0...path.length - 1)
+      {
+        if (circleContainsPt( circ, path[i]) ||
+            circleContainsPt( circ, path[i + 1]))
+          return true;
+
+        if (circleIntersectsLineSegment(circ, path[i], path[i+1]))
+          return true;
+      }
+    return false;
+  }
+
+  public static function isBetween( a:Float, b:Float, c:Float):Bool
+  {
+    return (a <= b && b <= c) || (c <= b && b <= a);
+  }
+
+  // choosing to do this b/c it will benefit from any efficiency gains that
+  // may be introduced into openfl's Point.distance method in the future:
+  static var distPt1:Point;
+  static var distPt2:Point;
+  public static function dist<P1:PointType, P2:PointType>(p1:P1,p2:P2):Float
+  {
+    if (distPt1 == null)
+      {
+        distPt1 = new Point();
+        distPt2 = new Point();
+      }
+
+    distPt1.x = p1.x;
+    distPt1.y = p1.y;
+
+    distPt2.x = p2.x;
+    distPt2.y = p2.y;
+
+    return Point.distance( distPt1, distPt2);
+  }
+
+  public static function circleContainsPt<C:Circle,P:PointType>
+    (circ:C, pt:P):Bool
+  {
+    return dist(circ, pt) <= circ.radius;
+  }
+
+  public static function circleIntersectsLineSegment<T:Circle, U:PointType>
+    ( circ: T, p1:U, p2:U):Bool
+  {
+    // if either enddpoint is in the circle, then we count an
+    // intersection.  note, that this means that even if the circle
+    // contains the whole segment, we count this as an intersection.
+    if (circleContainsPt(circ,p1) || circleContainsPt(circ, p2))
+      return true;
+
+    switch (lineOfSegment(p1, p2))
+      {
+      case Vertical(xVal):
+        return Math.abs(circ.x - xVal) <= circ.radius && isBetween(p1.y, circ.y, p2.y);
+
+      case Horizontal(yVal):
+        return Math.abs(circ.y - yVal) <= circ.radius && isBetween(p1.x, circ.x, p2.x);
+
+      case Sloped(m, yInt):
+        var a = m * m + 1;
+        var k = yInt - circ.y;
+        var b = 2 * (m*k - circ.x);
+        var c = k * k + circ.x * circ.x - circ.radius * circ.radius;
+
+        var discriminant = b * b - 4 * a * c;
+        return discriminant >= 0;
+      }
+  }
+
+  public static function ptEquals<P1:PointType, P2:PointType>(a:P1,b:P2):Bool
+  {
+    return a.x == b.x && a.y == b.y;
+  }
+
+  public static function lineOfSegment<P1:PointType, P2:PointType> ( a:P1, b:P2 ): Null<Line>
+  {
+    if (ptEquals(a, b )) return null;
     if (a.x == b.x) return Vertical(a.x);
     if (a.y == b.y) return Horizontal(a.y);
 
@@ -243,11 +435,15 @@ class GeomTools
     return Sloped(slope, yIntercept);
   }
 
-  public static function isCounterClockwiseOrder(a:Point,b:Point,c:Point):Bool {
+  public static function isCounterClockwiseOrder
+  <P1:PointType,P2:PointType,P3:PointType>
+  (a:P1,b:P2,c:P3):Bool {
     return (b.x - a.x) * (c.y - a.y) > (b.y - a.y) * (c.x - a.x);
   }
 
-  public static function segmentsIntersect(a:Point,b:Point,c:Point,d:Point):Bool
+  public static function segmentsIntersect
+  <P1:PointType,P2:PointType,P3:PointType,P4:PointType>
+  (a:P1,b:P2,c:P3,d:P4):Bool
   {
     return (isCounterClockwiseOrder( a, c, d) != isCounterClockwiseOrder(b, c, d)) &&
       (isCounterClockwiseOrder( a ,b, c) != isCounterClockwiseOrder(a, b, d));
@@ -263,8 +459,6 @@ class GeomTools
   public static function linesIntersectAt(a:Point,b:Point,c:Point,d:Point):Null<Point>
   {
     var segments = [lineOfSegment(a, b), lineOfSegment(c, d)];
-    trace(segments);
-
     switch (segments)
       {
       case [Sloped(m1,b1), Sloped(m2,b2)]:
@@ -303,6 +497,26 @@ class GeomTools
       }
     return null;
   }
+
+  // useful for "shrinking" a path so that, when drawn via a Graphics
+  // object, the Sprite will remain small. 
+  public static function translatePathToOrigin (path:Array<Point>) : Array<Point>
+  {
+    if (path.length == 0) return [];
+
+    var minX = path[0].x;
+    var minY = path[0].y;
+
+    for (pt in path)
+      {
+        minX = Math.min( minX, pt.x);
+        minY = Math.min( minY, pt.y);
+      }
+
+    // non-destructive w/rspct to path
+    return path.map( pt -> new Point(pt.x - minX, pt.y - minY)); 
+  }
+  
 }
 
 class Main extends Sprite
