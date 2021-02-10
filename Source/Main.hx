@@ -11,7 +11,7 @@ import openfl.utils.Timer;
 import openfl.display.SimpleButton;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
-
+import motion.Actuate;
 import haxe.ds.Option;
 
 using Lambda;
@@ -102,6 +102,7 @@ class DrawingScreen extends Sprite
      suitable for passing in as the "skin" of a wiggler. */
   
   var path: Array<Point> = [];
+  var holdPath:Bool = false;
 
   public function new ()
   {
@@ -133,18 +134,37 @@ class DrawingScreen extends Sprite
 
   function onMouseDown (e)
   {
+    trace('onMouseDown');
+    refresh();
     drawing = true;
     timestamp = haxe.Timer.stamp();
     path = [ new Point(e.localX, e.localY) ];
 
-    graphics.clear();
     graphics.lineStyle(3, 0);
     graphics.moveTo( path[0].x, path[0].y );
+  }
+
+  function refresh ()
+  {
+    Actuate.stop(this);
+    graphics.clear();
+    alpha = 1.0;
+    visible = true;
+    path = [];
+    holdPath = false;
+  }
+
+  function fadeAndRefresh()
+  {
+    Actuate
+      .tween(this, 0.5, {alpha: 0})
+      .onComplete( refresh );
   }
 
   function onMouseUp (e)
   {
     drawing = false;
+    if (!holdPath) fadeAndRefresh();
   }
   
   function onMouseOut (e)
@@ -164,16 +184,18 @@ class DrawingScreen extends Sprite
 
   function onMouseMove (e)
   {
+    if (!drawing) return;
+
     var stamp = haxe.Timer.stamp();
     var pt = new Point( e.localX, e.localY);
-    if (drawing &&
-        (stamp - timestamp > sampleRate) &&
+    if ((stamp - timestamp > sampleRate) &&
         Point.distance(pt, path[path.length - 1]) >= sampleGap)
       {
         var intersectIndex = GeomTools.findSelfIntersection( path, pt );
         if (intersectIndex != null)
           {
             drawing = false;
+            holdPath = true;
             var intersectionPt =
               GeomTools.linesIntersectAt( path[intersectIndex],
                                           path[intersectIndex + 1],
