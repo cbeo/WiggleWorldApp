@@ -23,15 +23,6 @@ typedef HasColor = {color: Int};
 
 typedef MovingColoredCircle = Circle & HasVelocity & HasColor;
 
-typedef BoxConfig =
-  { 
-    width:Float,
-    height:Float,
-    bgColor:Int,               
-    borderColor:Int,
-    borderThickness:Float,
-    borderRadius:Float,        // if set, roundRect
-  };
 
 class Button extends SimpleButton
 {
@@ -102,9 +93,7 @@ class Wiggler extends Sprite
     super();
     this.path = path;
   }
-  
 }
-
 
 class DrawingScreen extends Sprite
 {
@@ -117,23 +106,42 @@ class DrawingScreen extends Sprite
   public function new ()
   {
     super();
+    addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown);
+    addEventListener(MouseEvent.MOUSE_UP, onMouseUp);
+    addEventListener(MouseEvent.MOUSE_OUT, onMouseOut);
+    addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);
+    addEventListener(Event.ADDED_TO_STAGE, maximizeHitArea);
   }
 
   /* Event Handling */
   
   static inline var sampleRate:Float = 0.01;
   static inline var sampleGap:Float = 5.0;
+  static inline var bgColor:Int = 0xFFFFFF;
 
   var drawing = false;
   var timestamp:Float;
+
+  function maximizeHitArea(e)
+  {
+    var hitBox = new Sprite();
+    hitBox.graphics.beginFill(0);
+    hitBox.graphics.drawRect( 0, 0, stage.stageWidth, stage.stageHeight);
+    hitBox.mouseEnabled = false;
+    this.hitArea = hitBox;
+  }
 
   function onMouseDown (e)
   {
     drawing = true;
     timestamp = haxe.Timer.stamp();
     path = [ new Point(e.localX, e.localY) ];
+
+    graphics.clear();
+    graphics.lineStyle(3, 0);
+    graphics.moveTo( path[0].x, path[0].y );
   }
-  
+
   function onMouseUp (e)
   {
     drawing = false;
@@ -144,6 +152,16 @@ class DrawingScreen extends Sprite
     drawing = false;
   }
   
+  function clearAndRenderPath()
+  {
+    graphics.clear();
+    graphics.lineStyle(3, 0);
+    graphics.moveTo(path[0].x, path[0].y);
+    for (i in 1...path.length)
+      graphics.lineTo(path[i].x, path[i].y);
+    graphics.lineTo(path[0].x, path[0].y);
+  }
+
   function onMouseMove (e)
   {
     var stamp = haxe.Timer.stamp();
@@ -152,14 +170,35 @@ class DrawingScreen extends Sprite
         (stamp - timestamp > sampleRate) &&
         Point.distance(pt, path[path.length - 1]) >= sampleGap)
       {
-        var selfIntersection = GeomTools.findSelfIntersection(path, pt);
+        var intersectIndex = GeomTools.findSelfIntersection( path, pt );
+        if (intersectIndex != null)
+          {
+            drawing = false;
+            var intersectionPt =
+              GeomTools.linesIntersectAt( path[intersectIndex],
+                                          path[intersectIndex + 1],
+                                          path[path.length -1], pt);
+
+            path = path.slice( intersectIndex );
+            if (intersectionPt != null)
+              {
+                path.push(intersectionPt);
+                graphics.lineTo( intersectionPt.x, intersectionPt.y);
+              }
+            else
+              {
+                graphics.lineTo( pt.x, pt.y );
+              }
+
+            clearAndRenderPath();
+            return; // to return early
+          }
+
         timestamp = stamp;
         path.push( pt );
         graphics.lineTo( pt.x, pt.y);
       }
-    
   }
-
 }
 
 enum Line {
@@ -174,8 +213,8 @@ class GeomTools
   public static function lineOfSegment ( a:Point, b:Point ): Null<Line>
   {
     if (a.equals( b )) return null;
-    if (a.x == b.x) return Vertical(a.y);
-    if (a.y == b.y) return Horizontal(a.x);
+    if (a.x == b.x) return Vertical(a.x);
+    if (a.y == b.y) return Horizontal(a.y);
 
     var slope = (b.y - a.y) / (b.x - a.x);
     var yIntercept = a.y - slope * a.x;
@@ -192,9 +231,19 @@ class GeomTools
       (isCounterClockwiseOrder( a ,b, c) != isCounterClockwiseOrder(a, b, d));
   }
 
+
+  public static function pathIsCounterClockwise( path: Array<Point> ) : Bool
+  {
+    return path.length > 2 && isCounterClockwiseOrder(path[0], path[1], path[2]);
+  }
+
+
   public static function linesIntersectAt(a:Point,b:Point,c:Point,d:Point):Null<Point>
   {
-    switch ([lineOfSegment(a, b), lineOfSegment(c, d)])
+    var segments = [lineOfSegment(a, b), lineOfSegment(c, d)];
+    trace(segments);
+
+    switch (segments)
       {
       case [Sloped(m1,b1), Sloped(m2,b2)]:
         var x = (b2 - b1) / (m1 - m2);
@@ -219,8 +268,7 @@ class GeomTools
 
   // given a path and a point, check of the line between the last
   // point in tha path and the provided point intersects the path.  If
-  // it does, the index of the path point before the
-  // intersection. Otherwise return null;
+  // it does, the last index in the path checked is returned.
   public static function findSelfIntersection
   ( path:Array<Point>, pt:Point ) : Null<Int>
   {
@@ -229,11 +277,10 @@ class GeomTools
         var last = path.length -1;
         for (i in 1...last)
           if ( segmentsIntersect( path[i-1], path[i], path[last], pt) )
-            return i-1;
+            return i;
       }
     return null;
   }
-    
 }
 
 class Main extends Sprite
@@ -241,10 +288,13 @@ class Main extends Sprite
   public function new()
   {
     super();
-    var b = new Button("hey");
-    b.x = 100; b.y = 100;
-    addChild(b);
+    addEventListener(Event.ADDED_TO_STAGE, onInit);
   }
 
+  function onInit (e)
+  {
+    var screen = new DrawingScreen();
+    addChild( screen );
+  }
   
 }
