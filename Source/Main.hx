@@ -140,13 +140,21 @@ class Wiggler extends Sprite
       {
         var bbox = GeomTools.pathBoundingBox( path );
         var rad = radiusGradient * radiiSizes;
+        var step = 0.9;
         while (rad > 0)
           {
-            for (i in 0 ... CIRCLE_TRIALS)
-              {
-                var circ = randomCircle( bbox, rad );
-                if (isValidCircle( circ )) circles.push(circ);
-              }
+            for (cx in 0...Std.int(bbox.width / (step * rad)))
+              for (cy in 0...Std.int(bbox.height / (step * rad)))
+                {
+                  var circ = {
+                  x: cx * step * rad,
+                  y:cy * step * rad,
+                  radius:rad,
+                  color: Std.int(Math.random() * 0xFFFFFF)
+                  };
+
+                  if (isValidCircle( circ )) circles.push( circ );
+                }
             rad -= radiusGradient;
           }
       }
@@ -333,10 +341,17 @@ enum Line {
 class GeomTools
 {
 
+  public static function randomBetween(lo:Float,hi:Float):Float
+  {
+    if (hi < lo) return randomBetween(hi, lo);
+
+    return Math.random() * (hi - lo) + lo;   
+  }
+
   public static function circlesIntersect<C1:Circle,C2:Circle>(c1:C1,c2:C2):Bool
   {
     var d = dist(c1,c2);
-    return d <= c1.radius + c2.radius;
+    return d < c1.radius + c2.radius;
   }
 
   public static function pathBoundingBox( path:Array<Point> ):Null<Rectangle>
@@ -495,7 +510,9 @@ class GeomTools
   }
 
 
-  public static function linesIntersectAt(a:Point,b:Point,c:Point,d:Point):Null<Point>
+  public static function linesIntersectAt
+  <P1:PointType,P2:PointType,P3:PointType,P4:PointType>
+    (a:P1,b:P2,c:P3,d:P4):Null<Point>
   {
     var segments = [lineOfSegment(a, b), lineOfSegment(c, d)];
     switch (segments)
