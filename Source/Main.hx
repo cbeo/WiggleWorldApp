@@ -87,13 +87,14 @@ class Button extends SimpleButton
 
 class Wiggler extends Sprite
 {
-  static inline var RADIUS_DRAW_THRESHHOLD = 450;
-  static inline var CIRCLE_TRIALS = 10000;
-
+  static inline var RADIUS_DRAW_THRESHHOLD = 25;
+  
   var path:Array<Point> = [];
 
-  var radiusGradient:Float = 4.0;
-  var radiiSizes:Int = 15;
+  var radiusGradient:Float = 3.0;
+  var radiiSizes:Int = 25;
+
+  var dontDrawLargerThanFactor = 0.2;
   var circles:Array<ColoredCircle> = [];
 
   public function new (path:Array<Point>)
@@ -140,7 +141,7 @@ class Wiggler extends Sprite
       {
         var bbox = GeomTools.pathBoundingBox( path );
         var rad = radiusGradient * radiiSizes;
-        var step = 0.9;
+        var step = 1.25;
         while (rad > 0)
           {
             for (cx in 0...Std.int(bbox.width / (step * rad)))
@@ -166,19 +167,22 @@ class Wiggler extends Sprite
     if (path.length == 0) return;
     
     graphics.clear();
-    graphics.lineStyle(2.0);
     var graphicsPath = new GraphicsPath();
     graphicsPath.moveTo( path[0].x, path[0].y);
     for (i in 1...path.length)
       graphicsPath.lineTo( path[i].x, path[i].y);
+
+    graphics.lineStyle(8.0);
     graphicsPath.lineTo( path[0].x, path[0].y);
 
     graphics.drawPath( graphicsPath.commands, graphicsPath.data );
 
+    var dontDrawLargerThan = radiiSizes * radiusGradient * dontDrawLargerThanFactor;
+    graphics.lineStyle(2.0);
     for (circ in circles)
-      if (circ.radius <= RADIUS_DRAW_THRESHHOLD)
+      if (circ.radius <= dontDrawLargerThan)
         {
-          graphics.beginFill( circ.color, 0.5);
+          graphics.beginFill( circ.color, 0.75);
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
   }
@@ -232,7 +236,7 @@ class DrawingScreen extends Sprite
     timestamp = haxe.Timer.stamp();
     path = [ new Point(e.localX, e.localY) ];
 
-    graphics.lineStyle(3, 0);
+    graphics.lineStyle(2, 0);
     graphics.moveTo( path[0].x, path[0].y );
   }
 
@@ -267,7 +271,7 @@ class DrawingScreen extends Sprite
   function clearAndRenderPath()
   {
     graphics.clear();
-    graphics.lineStyle(3, 0);
+    graphics.lineStyle(2, 0);
     graphics.moveTo(path[0].x, path[0].y);
     for (i in 1...path.length)
       graphics.lineTo(path[i].x, path[i].y);
