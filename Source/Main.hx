@@ -1,19 +1,20 @@
 package;
 
+import haxe.ds.Option;
+import motion.Actuate;
+import openfl.display.GraphicsPath;
+import openfl.display.SimpleButton;
 import openfl.display.Sprite;
+import openfl.events.Event;
+import openfl.events.KeyboardEvent;
+import openfl.events.MouseEvent;
+import openfl.events.TimerEvent;
 import openfl.geom.Point;
 import openfl.geom.Rectangle;
-import openfl.events.MouseEvent;
-import openfl.events.KeyboardEvent;
-import openfl.events.Event;
-import openfl.events.TimerEvent;
-import openfl.ui.Keyboard;
-import openfl.utils.Timer;
-import openfl.display.SimpleButton;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
-import motion.Actuate;
-import haxe.ds.Option;
+import openfl.ui.Keyboard;
+import openfl.utils.Timer;
 
 using Lambda;
 
@@ -86,8 +87,8 @@ class Button extends SimpleButton
 
 class Wiggler extends Sprite
 {
-  static inline var RADIUS_DRAW_THRESHHOLD = 25;
-  static inline var CIRCLE_TRIALS = 1000;
+  static inline var RADIUS_DRAW_THRESHHOLD = 450;
+  static inline var CIRCLE_TRIALS = 10000;
 
   var path:Array<Point> = [];
 
@@ -100,6 +101,7 @@ class Wiggler extends Sprite
     super();
     this.path = GeomTools.translatePathToOrigin( path );
     addCircles();
+    render();
   }
 
   // A circle is valid if it is contained within the boundary of the
@@ -150,6 +152,29 @@ class Wiggler extends Sprite
       }
   }
 
+
+  public function render ()
+  {
+    if (path.length == 0) return;
+    
+    graphics.clear();
+    graphics.lineStyle(2.0);
+    var graphicsPath = new GraphicsPath();
+    graphicsPath.moveTo( path[0].x, path[0].y);
+    for (i in 1...path.length)
+      graphicsPath.lineTo( path[i].x, path[i].y);
+    graphicsPath.lineTo( path[0].x, path[0].y);
+
+    graphics.drawPath( graphicsPath.commands, graphicsPath.data );
+
+    for (circ in circles)
+      if (circ.radius <= RADIUS_DRAW_THRESHHOLD)
+        {
+          graphics.beginFill( circ.color, 0.5);
+          graphics.drawCircle( circ.x, circ.y, circ.radius);
+        }    
+  }
+
 }
 
 class DrawingScreen extends Sprite
@@ -169,7 +194,7 @@ class DrawingScreen extends Sprite
     super();
     addEventListener(MouseEvent.MOUSE_DOWN, onMouseDown);
     addEventListener(MouseEvent.MOUSE_UP, onMouseUp);
-    addEventListener(MouseEvent.MOUSE_OUT, onMouseOut);
+    addEventListener(MouseEvent.MOUSE_OUT, onMouseUp);
     addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);
     addEventListener(Event.ADDED_TO_STAGE, maximizeHitArea);
   }
@@ -206,6 +231,11 @@ class DrawingScreen extends Sprite
   function refresh ()
   {
     Actuate.stop(this); 
+    if (candidateWiggler != null)
+      {
+        removeChild( candidateWiggler );
+        candidateWiggler = null;
+      }
     graphics.clear();
     alpha = 1.0;
     visible = true;
@@ -224,11 +254,6 @@ class DrawingScreen extends Sprite
   {
     drawing = false;
     if (!holdPath) fadeAndRefresh();
-  }
-  
-  function onMouseOut (e)
-  {
-    drawing = false;
   }
   
   function clearAndRenderPath()
@@ -270,8 +295,8 @@ class DrawingScreen extends Sprite
             else
               graphics.lineTo( pt.x, pt.y );
 
-            clearAndRenderPath();
-            //createAndPresentWiggler();
+            //clearAndRenderPath();
+            createAndPresentWiggler();
             return; // to return early
           }
 
@@ -282,7 +307,21 @@ class DrawingScreen extends Sprite
   }
 
 
-  function createAndPresentWiggler() {}
+  function createAndPresentWiggler()
+  {
+    clearAndRenderPath();
+
+    var bbox = GeomTools.pathBoundingBox( path );
+
+    candidateWiggler = new Wiggler( path );
+    candidateWiggler.x = bbox.x;
+    candidateWiggler.y = bbox.y;
+
+    //graphics.clear();
+
+    addChild( candidateWiggler );
+
+  }
 }
 
 enum Line {
@@ -297,7 +336,7 @@ class GeomTools
   public static function circlesIntersect<C1:Circle,C2:Circle>(c1:C1,c2:C2):Bool
   {
     var d = dist(c1,c2);
-    return d <= c1.radius || d <= c2.radius;
+    return d <= c1.radius + c2.radius;
   }
 
   public static function pathBoundingBox( path:Array<Point> ):Null<Rectangle>
