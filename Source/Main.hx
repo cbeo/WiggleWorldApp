@@ -24,7 +24,12 @@ typedef Circle = PointType & {radius:Float};
 typedef HasColor = {color: Int};
 typedef ColoredCircle = HasColor & Circle;
 
+typedef RectType = PointType & {width:Float,height:Float};
 
+typedef SkeletonNode =
+  {
+  extensions:Array<PointType>
+  };
 
 class Button extends SimpleButton
 {
@@ -88,7 +93,8 @@ class Button extends SimpleButton
 class Wiggler extends Sprite
 {
   static inline var RADIUS_DRAW_THRESHHOLD = 25;
-  
+  static inline var BRANCHING_FACTOR = 5;
+
   var path:Array<Point> = [];
 
   var radiusGradient:Float = 3.0;
@@ -97,11 +103,14 @@ class Wiggler extends Sprite
   var dontDrawLargerThanFactor = 0.2;
   var circles:Array<ColoredCircle> = [];
 
+  var bones:Map<PointType, SkeletonNode>;
+  
   public function new (path:Array<Point>)
   {
     super();
     this.path = GeomTools.translatePathToOrigin( path );
     addCircles();
+    addBones();
     render();
   }
 
@@ -161,30 +170,116 @@ class Wiggler extends Sprite
       }
   }
 
+  function segmentIntersectsBones(p1,p2):Bool
+  {
+    for (hinge => node in bones)
+      for (butt in node.extensions)
+        if (GeomTools.segmentsIntersect(p1,p2,hinge,butt))
+          return true;
+
+    return false;
+  }
+
+  function biggestCircleInQuadrant(rect:Rectangle)
+  {
+    var biggest:ColoredCircle = null;
+    for (c in circles)
+      if (GeomTools.pointInRectangle(c,rect))
+        biggest = if (biggest == null || biggest.radius < c.radius) c else biggest;
+
+    return biggest;
+  }
+  
+  function addBones ()
+  {
+    bones = new Map();
+    var candidates = circles.copy();
+    candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
+    
+    var frontier = [];
+    var bbox = GeomTools.pathBoundingBox( path );
+    var quad = new Rectangle(0,0,
+                             radiusGradient * radiiSizes * 1.2 ,
+                             radiusGradient * radiiSizes * 1.2 );
+
+    for (ix in 0...Math.floor( bbox.width / quad.width))
+      for (iy in 0...Math.floor( bbox.height / quad.height))
+        {
+          quad.x = ix * quad.width;
+          quad.y = iy * quad.height;
+          var circ = biggestCircleInQuadrant( quad );
+          if (circ != null)
+            {
+              frontier.push( circ );
+              candidates.remove( circ );
+            }
+        }
+
+    while (frontier.length > 0)
+      {
+        var node = frontier.shift();
+        var validNeighbors =
+          candidates.filter( n -> n.radius <= node.radius
+                             && !GeomTools.segmentIntersectsPath(node, n, path)
+                             && !segmentIntersectsBones(node, n));
+
+        var toBranch = Math.ceil(Math.random() * BRANCHING_FACTOR);
+        var newNbrs = validNeighbors.slice(0, toBranch);
+
+        newNbrs.sort( (a,b) -> Std.int(GeomTools.dist(a, node) - GeomTools.dist(b, node)));
+        
+        bones[node] = {extensions: newNbrs.copy()};
+
+        for (nbr in newNbrs)
+          {
+            candidates.remove( nbr );
+            frontier.push( nbr );
+          }
+
+        candidates = candidates
+          .filter( circ -> {
+              for (nbr in newNbrs)
+                if (GeomTools.circleIntersectsLineSegment( circ, node, nbr))
+                  return false;
+              return true;
+            });
+      }
+  }
+
 
   public function render ()
   {
     if (path.length == 0) return;
-    
+
     graphics.clear();
+
     var graphicsPath = new GraphicsPath();
     graphicsPath.moveTo( path[0].x, path[0].y);
     for (i in 1...path.length)
       graphicsPath.lineTo( path[i].x, path[i].y);
 
+    graphics.beginFill(0xfaeeee);
     graphics.lineStyle(8.0);
     graphicsPath.lineTo( path[0].x, path[0].y);
-
     graphics.drawPath( graphicsPath.commands, graphicsPath.data );
 
     var dontDrawLargerThan = radiiSizes * radiusGradient * dontDrawLargerThanFactor;
-    graphics.lineStyle(2.0);
+    graphics.lineStyle(0.0);
     for (circ in circles)
       if (circ.radius <= dontDrawLargerThan)
         {
-          graphics.beginFill( circ.color, 0.75);
+          graphics.beginFill( circ.color, 0.5);
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
+
+    graphics.lineStyle(2,0xff0000);
+    for (hinge => node in bones)
+      for (butt in node.extensions)
+        {
+          graphics.moveTo(hinge.x, hinge.y);
+          graphics.lineTo(butt.x, butt.y);
+        }
+
   }
 
 }
@@ -345,6 +440,11 @@ enum Line {
 class GeomTools
 {
 
+  public static function pointInRectangle<P:PointType,R:RectType>(p:P,r:R):Bool
+  {
+    return isBetween(r.x, p.x, r.x + r.width) && isBetween(r.y, p.y, r.y + r.height);
+  }
+
   public static function randomBetween(lo:Float,hi:Float):Float
   {
     if (hi < lo) return randomBetween(hi, lo);
@@ -449,8 +549,9 @@ class GeomTools
     return dist(circ, pt) <= circ.radius;
   }
 
-  public static function circleIntersectsLineSegment<T:Circle, U:PointType>
-    ( circ: T, p1:U, p2:U):Bool
+  public static function circleIntersectsLineSegment
+  <C:Circle, P1:PointType, P2:PointType>
+    ( circ: C, p1:P1, p2:P2):Bool
   {
     // if either enddpoint is in the circle, then we count an
     // intersection.  note, that this means that even if the circle
@@ -460,6 +561,9 @@ class GeomTools
 
     switch (lineOfSegment(p1, p2))
       {
+      case null:
+        return false;
+
       case Vertical(xVal):
         return Math.abs(circ.x - xVal) <= circ.radius && isBetween(p1.y, circ.y, p2.y);
 
@@ -556,6 +660,18 @@ class GeomTools
             return i;
       }
     return null;
+  }
+
+  public static function segmentIntersectsPath
+  <P1:PointType, P2:PointType, P3:PointType> 
+    (p1:P1, p2:P2, path:Array<P3>) : Bool
+  {
+    if (path.length > 1)
+      for (i in 1...path.length)
+        if (segmentsIntersect( p1 , p2, path[i-1], path[i]))
+          return true;
+
+    return segmentsIntersect( p1, p2, path[path.length - 1], path[0]);    
   }
 
   // useful for "shrinking" a path so that, when drawn via a Graphics
