@@ -94,6 +94,7 @@ class Wiggler extends Sprite
 {
   static inline var RADIUS_DRAW_THRESHHOLD = 25;
   static inline var BRANCHING_FACTOR = 5;
+  static inline var QUADRANT_COEFF = 1.2;
 
   var path:Array<Point> = [];
 
@@ -199,8 +200,8 @@ class Wiggler extends Sprite
     var frontier = [];
     var bbox = GeomTools.pathBoundingBox( path );
     var quad = new Rectangle(0,0,
-                             radiusGradient * radiiSizes * 1.2 ,
-                             radiusGradient * radiiSizes * 1.2 );
+                             radiusGradient * radiiSizes * QUADRANT_COEFF,
+                             radiusGradient * radiiSizes * QUADRANT_COEFF );
 
     for (ix in 0...Math.floor( bbox.width / quad.width))
       for (iy in 0...Math.floor( bbox.height / quad.height))
