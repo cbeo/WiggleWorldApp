@@ -28,7 +28,9 @@ typedef RectType = PointType & {width:Float,height:Float};
 
 typedef SkeletonNode =
   {
-  extensions:Array<PointType>
+  startAngle: Float,          // the angle between this end point and its join's parent bone.
+  butt: PointType,           // the end of the bone
+  followers: Array<PointType>  // array of points that will move in sync with this bone
   };
 
 class Button extends SimpleButton
@@ -104,7 +106,7 @@ class Wiggler extends Sprite
   var dontDrawLargerThanFactor = 0.2;
   var circles:Array<ColoredCircle> = [];
 
-  var bones:Map<PointType, SkeletonNode>;
+  var bones:Map<PointType, Array<SkeletonNode>>;
   
   public function new (path:Array<Point>)
   {
@@ -112,6 +114,7 @@ class Wiggler extends Sprite
     this.path = GeomTools.translatePathToOrigin( path );
     addCircles();
     addBones();
+
     render();
   }
 
@@ -173,9 +176,9 @@ class Wiggler extends Sprite
 
   function segmentIntersectsBones(p1,p2):Bool
   {
-    for (hinge => node in bones)
-      for (butt in node.extensions)
-        if (GeomTools.segmentsIntersect(p1,p2,hinge,butt))
+    for (hinge => nodes in bones)
+      for (node in nodes)
+        if (GeomTools.segmentsIntersect(p1, p2, hinge, node.butt ))
           return true;
 
     return false;
@@ -190,7 +193,7 @@ class Wiggler extends Sprite
 
     return biggest;
   }
-  
+
   function addBones ()
   {
     bones = new Map();
@@ -198,6 +201,8 @@ class Wiggler extends Sprite
     candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
     
     var frontier = [];
+
+    // start the frontier with the largest circle in each "quadrant"
     var bbox = GeomTools.pathBoundingBox( path );
     var quad = new Rectangle(0,0,
                              radiusGradient * radiiSizes * QUADRANT_COEFF,
@@ -216,6 +221,7 @@ class Wiggler extends Sprite
             }
         }
 
+    // add bones
     while (frontier.length > 0)
       {
         var node = frontier.shift();
@@ -228,8 +234,9 @@ class Wiggler extends Sprite
         var newNbrs = validNeighbors.slice(0, toBranch);
 
         newNbrs.sort( (a,b) -> Std.int(GeomTools.dist(a, node) - GeomTools.dist(b, node)));
-        
-        bones[node] = {extensions: newNbrs.copy()};
+
+        bones[node] = 
+          newNbrs.map( nbr -> ({ butt: nbr,  startAngle: 0,  followers: [] } : SkeletonNode));
 
         for (nbr in newNbrs)
           {
@@ -272,15 +279,15 @@ class Wiggler extends Sprite
           graphics.beginFill( circ.color, 0.5);
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
-
-    graphics.lineStyle(2,0xff0000);
-    for (hinge => node in bones)
-      for (butt in node.extensions)
-        {
-          graphics.moveTo(hinge.x, hinge.y);
-          graphics.lineTo(butt.x, butt.y);
-        }
-
+    
+    // graphics.lineStyle(2,0xff0000);
+    // for (hinge => node in bones)
+    //   for (butt in node.extensions)
+    //     {
+    //       graphics.moveTo(hinge.x, hinge.y);
+    //       graphics.lineTo(butt.x, butt.y);
+    //     }
+    
   }
 
 }
