@@ -194,6 +194,30 @@ class Wiggler extends Sprite
     return biggest;
   }
 
+  function associatePtWithNearestBone<P:PointType>(pt:P)
+  {
+    if (bones.exists( pt )) return;
+
+    var dist:Float = -1;
+    var nearNode:SkeletonNode = null;
+
+    for ( hinge => nodes in bones)
+      for (node in nodes)
+        if (pt == node.butt)
+          return;
+        else if ( nearNode == null )
+          {
+            nearNode = node;
+            dist = GeomTools.distanceToSegment( pt, hinge, node.butt );
+          }
+        else if ( GeomTools.distanceToSegment( pt, hinge, node.butt) < dist)
+          nearNode = node;
+    
+
+    if (nearNode != null)
+      nearNode.followers.push( pt );
+  }
+
   function addBones ()
   {
     bones = new Map();
@@ -252,6 +276,12 @@ class Wiggler extends Sprite
               return true;
             });
       }
+
+    // associate path points and circles with a bone
+    for (pt in circles)
+      associatePtWithNearestBone(pt);
+    for (pt in path)
+      associatePtWithNearestBone(pt);
   }
 
 
@@ -447,6 +477,49 @@ enum Line {
 
 class GeomTools
 {
+
+  public static function dotProduct<P1:PointType, P2:PointType>(p1:P1,p2:P2):Float
+  {
+    return p1.x * p2.x + p1.y * p2.y;
+  }
+
+  public static function distanceToSegment
+  <P1:PointType, P2:PointType, P3:PointType>
+    (p:P1, a:P2, b:P3):Float
+  {
+    var ab = {x: b.x - a.x, y: b.y - a.y};
+    var bp = {x: p.x - b.x, y: p.y - b.y};
+
+    if ( dotProduct( ab, bp ) > 0)
+      return dist(b, p);
+
+    var ba = {x: a.x - b.x, y: a.y - b.y};
+    var pb = {x: b.x - p.x, y: b.y - p.y};
+
+    if ( dotProduct( ba, pb) > 0 )
+      return dist(a, p);
+
+    switch (lineOfSegment(a, b))
+      {
+      case Vertical( xVal ):
+        return Math.abs( xVal - p.x );
+
+      case Horizontal( yVal ):
+        return Math.abs( yVal - p.y );
+
+      case Sloped(m,intercept):
+        // l1: y = m * x + intercept
+        // l2: p.y = -1 * p.x / m + intercept2
+        var intercept2 =  p.y + p.x / m;
+        // -1 * sx / m + intercept2 = m * sx + intercept
+        // intercept2 - intercept = m * sx + sx / m
+        // intercept2 - intercept = sx * (m + 1/m)
+        var sx = (intercept2 - intercept) / (m + 1 / m);
+        var sy = m * sx + intercept;
+        return dist( {x:sx,y:sy}, p);
+      }
+
+  }
 
   public static function pointInRectangle<P:PointType,R:RectType>(p:P,r:R):Bool
   {
