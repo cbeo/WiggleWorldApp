@@ -111,7 +111,7 @@ class Wiggler extends Sprite
   public function new (path:Array<Point>)
   {
     super();
-    this.path = GeomTools.translatePathToOrigin( path );
+    this.path = Util.translatePathToOrigin( path );
     addCircles();
     addBones();
 
@@ -128,14 +128,14 @@ class Wiggler extends Sprite
 
   function circleInsideClosedPath( circ ): Bool
   {
-    return GeomTools.pointInsideClosedPath( circ, path) &&
-      !GeomTools.circleIntersectsPath(circ, path);
+    return Util.pointInsideClosedPath( circ, path) &&
+      !Util.circleIntersectsPath(circ, path);
   }
   
   function circleIntersectsCircles( circ ): Bool
   {
     for (c in circles)
-      if (GeomTools.circlesIntersect( c, circ))
+      if (Util.circlesIntersect( c, circ))
         return true;
 
     return false;
@@ -143,7 +143,7 @@ class Wiggler extends Sprite
 
   function randomCircle( box:Rectangle, radius:Float): ColoredCircle
   {
-    var pt = GeomTools.randomPointInRect( box );
+    var pt = Util.randomPointInRect( box );
     return {x:pt.x, y:pt.y, color: Std.int(Math.random() * 0xFFFFFF), radius:radius};
   }
 
@@ -152,7 +152,7 @@ class Wiggler extends Sprite
     circles = [];
     if (path.length > 2)
       {
-        var bbox = GeomTools.pathBoundingBox( path );
+        var bbox = Util.pathBoundingBox( path );
         var rad = radiusGradient * radiiSizes;
         var step = 1.25;
         while (rad > 0)
@@ -178,7 +178,7 @@ class Wiggler extends Sprite
   {
     for (hinge => nodes in bones)
       for (node in nodes)
-        if (GeomTools.segmentsIntersect(p1, p2, hinge, node.butt ))
+        if (Util.segmentsIntersect(p1, p2, hinge, node.butt ))
           return true;
 
     return false;
@@ -188,7 +188,7 @@ class Wiggler extends Sprite
   {
     var biggest:ColoredCircle = null;
     for (c in circles)
-      if (GeomTools.pointInRectangle(c,rect))
+      if (Util.pointInRectangle(c,rect))
         biggest = if (biggest == null || biggest.radius < c.radius) c else biggest;
 
     return biggest;
@@ -198,21 +198,26 @@ class Wiggler extends Sprite
   {
     if (bones.exists( pt )) return;
 
-    var dist:Float = -1;
+    var dist:Float = 100000;
     var nearNode:SkeletonNode = null;
 
     for ( hinge => nodes in bones)
       for (node in nodes)
-        if (pt == node.butt)
-          return;
-        else if ( nearNode == null )
-          {
-            nearNode = node;
-            dist = GeomTools.distanceToSegment( pt, hinge, node.butt );
-          }
-        else if ( GeomTools.distanceToSegment( pt, hinge, node.butt) < dist)
-          nearNode = node;
-    
+        {
+          var tmpDist = Math.min(Util.dist(pt, hinge), Util.dist(pt, node.butt));
+          if (pt == node.butt)
+            return;               // exit if pt is a butt
+          else if ( nearNode == null )
+            {
+              nearNode = node;
+              dist = tmpDist;
+            }
+          else if (tmpDist < dist)
+            {
+              nearNode = node;
+              dist = tmpDist;
+            }
+        }
 
     if (nearNode != null)
       nearNode.followers.push( pt );
@@ -227,7 +232,7 @@ class Wiggler extends Sprite
     var frontier = [];
 
     // start the frontier with the largest circle in each "quadrant"
-    var bbox = GeomTools.pathBoundingBox( path );
+    var bbox = Util.pathBoundingBox( path );
     var quad = new Rectangle(0,0,
                              radiusGradient * radiiSizes * QUADRANT_COEFF,
                              radiusGradient * radiiSizes * QUADRANT_COEFF );
@@ -251,13 +256,13 @@ class Wiggler extends Sprite
         var node = frontier.shift();
         var validNeighbors =
           candidates.filter( n -> n.radius <= node.radius
-                             && !GeomTools.segmentIntersectsPath(node, n, path)
+                             && !Util.segmentIntersectsPath(node, n, path)
                              && !segmentIntersectsBones(node, n));
 
         var toBranch = Math.ceil(Math.random() * BRANCHING_FACTOR);
         var newNbrs = validNeighbors.slice(0, toBranch);
 
-        newNbrs.sort( (a,b) -> Std.int(GeomTools.dist(a, node) - GeomTools.dist(b, node)));
+        newNbrs.sort( (a,b) -> Std.int(Util.dist(a, node) - Util.dist(b, node)));
 
         bones[node] = 
           newNbrs.map( nbr -> ({ butt: nbr,  startAngle: 0,  followers: [] } : SkeletonNode));
@@ -271,7 +276,7 @@ class Wiggler extends Sprite
         candidates = candidates
           .filter( circ -> {
               for (nbr in newNbrs)
-                if (GeomTools.circleIntersectsLineSegment( circ, node, nbr))
+                if (Util.circleIntersectsLineSegment( circ, node, nbr))
                   return false;
               return true;
             });
@@ -281,7 +286,7 @@ class Wiggler extends Sprite
     for (pt in circles)
       associatePtWithNearestBone(pt);
     for (pt in path)
-      associatePtWithNearestBone(pt);
+     associatePtWithNearestBone(pt);
   }
 
 
@@ -310,12 +315,20 @@ class Wiggler extends Sprite
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
     
-    // graphics.lineStyle(2,0xff0000);
-    // for (hinge => node in bones)
-    //   for (butt in node.extensions)
+    // for (hinge => nodes in bones)
+    //   for (node in nodes)
     //     {
+    //       graphics.lineStyle(1,0xff0000);
     //       graphics.moveTo(hinge.x, hinge.y);
-    //       graphics.lineTo(butt.x, butt.y);
+    //       graphics.lineTo(node.butt.x, node.butt.y);
+    //       graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
+    //       //graphics.lineStyle(1,0x0000ff);
+    //       var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
+    //       for (follower in node.followers)
+    //         {
+    //           graphics.moveTo( mid.x, mid.y);
+    //           graphics.lineTo( follower.x, follower.y);
+    //         }
     //     }
     
   }
@@ -420,13 +433,13 @@ class DrawingScreen extends Sprite
     if ((stamp - timestamp > sampleRate) &&
         Point.distance(pt, path[path.length - 1]) >= sampleGap)
       {
-        var intersectIndex = GeomTools.findSelfIntersection( path, pt );
+        var intersectIndex = Util.findSelfIntersection( path, pt );
         if (intersectIndex != null)
           {
             drawing = false;
             holdPath = true;
             var intersectionPt =
-              GeomTools.linesIntersectAt( path[intersectIndex],
+              Util.linesIntersectAt( path[intersectIndex],
                                           path[intersectIndex + 1],
                                           path[path.length -1], pt);
 
@@ -456,7 +469,7 @@ class DrawingScreen extends Sprite
   {
     clearAndRenderPath();
 
-    var bbox = GeomTools.pathBoundingBox( path );
+    var bbox = Util.pathBoundingBox( path );
 
     candidateWiggler = new Wiggler( path );
     candidateWiggler.x = bbox.x;
@@ -475,7 +488,7 @@ enum Line {
   Sloped(slop:Float,yIntercept:Float);
 }
 
-class GeomTools
+class Util
 {
 
   public static function dotProduct<P1:PointType, P2:PointType>(p1:P1,p2:P2):Float
