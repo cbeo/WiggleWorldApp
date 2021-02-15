@@ -9,6 +9,7 @@ import openfl.events.Event;
 import openfl.events.KeyboardEvent;
 import openfl.events.MouseEvent;
 import openfl.events.TimerEvent;
+import openfl.geom.Matrix;
 import openfl.geom.Point;
 import openfl.geom.Rectangle;
 import openfl.text.TextField;
@@ -18,19 +19,30 @@ import openfl.utils.Timer;
 
 using Lambda;
 
-typedef PointType = { x:Float, y:Float};
-typedef HasVelocity =  {velocity: PointType};
-typedef Circle = PointType & {radius:Float};
+typedef Pt = { x:Float, y:Float};
+typedef HasVelocity =  {velocity: Pt};
+typedef Circle = Pt & {radius:Float};
 typedef HasColor = {color: Int};
 typedef ColoredCircle = HasColor & Circle;
 
-typedef RectType = PointType & {width:Float,height:Float};
+typedef RectType = Pt & {width:Float,height:Float};
+
+typedef SwingParams = {
+ startAngle:Float,
+ currentAngle:Float,
+ stopAngle:Float,
+ spin:Float
+};
 
 typedef SkeletonNode =
   {
-  startAngle: Float,          // the angle between this end point and its join's parent bone.
-  butt: PointType,           // the end of the bone
-  followers: Array<PointType>  // array of points that will move in sync with this bone
+  butt: Pt,                   // the shared point being considered           
+  followers: Array<Pt>,       // array of points that will move in sync with this bone
+  active:Bool,                // whether or not this one is moving
+  startAngle:Float,          // the start angle, relative to this hinge's own hinge bone.
+  stopAngle:Float,          // the stop angle
+  currentAngle:Float,      // the current angle
+  spin:Float              // current direction of radial motion.
   };
 
 class Button extends SimpleButton
@@ -106,7 +118,7 @@ class Wiggler extends Sprite
   var dontDrawLargerThanFactor = 0.2;
   var circles:Array<ColoredCircle> = [];
 
-  var bones:Map<PointType, Array<SkeletonNode>>;
+  var bones:Map<Pt, Array<SkeletonNode>>;
   
   public function new (path:Array<Point>)
   {
@@ -194,7 +206,7 @@ class Wiggler extends Sprite
     return biggest;
   }
 
-  function associatePtWithNearestBone<P:PointType>(pt:P)
+  function associatePtWithNearestBone<P:Pt>(pt:P)
   {
     if (bones.exists( pt )) return;
 
@@ -225,6 +237,7 @@ class Wiggler extends Sprite
 
   function addBones ()
   {
+    var reverseBones = new Map<Pt,Pt>(); // lookup for children to parents.
     bones = new Map();
     var candidates = circles.copy();
     candidates.sort( (a,b) -> Std.int(b.radius - a.radius));
@@ -254,21 +267,33 @@ class Wiggler extends Sprite
     while (frontier.length > 0)
       {
         var node = frontier.shift();
+        var parentHinge:Pt =
+          if (reverseBones.exists(node)) reverseBones[node] else {x:node.x + 10, y:node.y};
+
         var validNeighbors =
           candidates.filter( n -> n.radius <= node.radius
                              && !Util.segmentIntersectsPath(node, n, path)
                              && !segmentIntersectsBones(node, n));
 
+        validNeighbors.sort( (a,b) -> Std.int(Util.dist(a, node) - Util.dist(b, node)));
+
         var toBranch = Math.ceil(Math.random() * BRANCHING_FACTOR);
         var newNbrs = validNeighbors.slice(0, toBranch);
 
-        newNbrs.sort( (a,b) -> Std.int(Util.dist(a, node) - Util.dist(b, node)));
-
         bones[node] = 
-          newNbrs.map( nbr -> ({ butt: nbr,  startAngle: 0,  followers: [] } : SkeletonNode));
+          newNbrs.map( nbr -> ({
+                  butt: nbr,
+                  followers: [],
+                  active: false,
+                  startAngle: 0,
+                  stopAngle: 0,
+                  currentAngle: 0,
+                  spin: 0
+                  } : SkeletonNode));
 
         for (nbr in newNbrs)
           {
+            reverseBones[nbr] = node;
             candidates.remove( nbr );
             frontier.push( nbr );
           }
@@ -287,6 +312,7 @@ class Wiggler extends Sprite
       associatePtWithNearestBone(pt);
     for (pt in path)
      associatePtWithNearestBone(pt);
+
   }
 
 
@@ -315,22 +341,39 @@ class Wiggler extends Sprite
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
     
-    // for (hinge => nodes in bones)
-    //   for (node in nodes)
-    //     {
-    //       graphics.lineStyle(1,0xff0000);
-    //       graphics.moveTo(hinge.x, hinge.y);
-    //       graphics.lineTo(node.butt.x, node.butt.y);
-    //       graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
-    //       //graphics.lineStyle(1,0x0000ff);
-    //       var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
-    //       for (follower in node.followers)
-    //         {
-    //           graphics.moveTo( mid.x, mid.y);
-    //           graphics.lineTo( follower.x, follower.y);
-    //         }
-    //     }
+    for (hinge => nodes in bones)
+      for (node in nodes)
+        {
+          graphics.lineStyle(1,0xff0000);
+          graphics.moveTo(hinge.x, hinge.y);
+          graphics.lineTo(node.butt.x, node.butt.y);
+          graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
+          //graphics.lineStyle(1,0x0000ff);
+          // var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
+          // for (follower in node.followers)
+          //   {
+          //     graphics.moveTo( mid.x, mid.y);
+          //     graphics.lineTo( follower.x, follower.y);
+          //   }
+        }
     
+  }
+
+  function perFrame (e)
+  {
+    // each "point" has a transform matrix. Because we want the whole
+    // shape to transform depending on the number of "butts" attached
+    // to each joint, the animation behavior varies.
+
+    // 1 butt: wide rotation about the joint's parent bone by , say 30 to 180 degrees
+
+    // 2->3 butts: turn taking between the butts such that their
+    // associated bones never intersect, and they move in the
+    // direction of the whole wiggler's "drift" vector.
+
+    // 4->5 butts: synchronized expansion and contraction about a
+    // "virtual line" that extends through the "bone" of hinge. A kind
+    // of scissor effect.
   }
 
 }
@@ -491,25 +534,56 @@ enum Line {
 class Util
 {
 
-  public static function dotProduct<P1:PointType, P2:PointType>(p1:P1,p2:P2):Float
+
+  public static function dot<P1:Pt, P2:Pt>(p1:P1,p2:P2):Float
   {
     return p1.x * p2.x + p1.y * p2.y;
   }
 
+
+  static function calcAngleBetween
+  <P1:Pt,P2:Pt,P3:Pt>
+    (center:P1, p1:P2, p2:P3):Float
+  {
+    var v1 = {x: p1.x - center.x, y: p1.y - center.y};
+    var v2 = {x: p2.x - center.x, y: p2.y - center.y};
+
+    return Math.acos( dot(v1,v2) / Math.sqrt( dot(v1,v1) * dot(v2,v2) ));
+
+  }
+
+  static inline function rotatePtAboutPivot
+  <P1:Pt,P2:Pt>( pivot:P1, butt:P2, radians: Float)
+  {
+    var sine = Math.sin( radians );
+    var cosine = Math.cos( radians );
+
+    butt.x -= pivot.x;
+    butt.y -= pivot.y;
+
+    var newx = cosine * butt.x - sine * butt.y;
+    var newy = sine * butt.x + cosine * butt.y;
+
+    butt.x = newx + pivot.x;
+    butt.y = newy + pivot.y;
+  }
+
+
+
   public static function distanceToSegment
-  <P1:PointType, P2:PointType, P3:PointType>
+  <P1:Pt, P2:Pt, P3:Pt>
     (p:P1, a:P2, b:P3):Float
   {
     var ab = {x: b.x - a.x, y: b.y - a.y};
     var bp = {x: p.x - b.x, y: p.y - b.y};
 
-    if ( dotProduct( ab, bp ) > 0)
+    if ( dot( ab, bp ) > 0)
       return dist(b, p);
 
     var ba = {x: a.x - b.x, y: a.y - b.y};
     var pb = {x: b.x - p.x, y: b.y - p.y};
 
-    if ( dotProduct( ba, pb) > 0 )
+    if ( dot( ba, pb) > 0 )
       return dist(a, p);
 
     switch (lineOfSegment(a, b))
@@ -534,7 +608,7 @@ class Util
 
   }
 
-  public static function pointInRectangle<P:PointType,R:RectType>(p:P,r:R):Bool
+  public static function pointInRectangle<P:Pt,R:RectType>(p:P,r:R):Bool
   {
     return isBetween(r.x, p.x, r.x + r.width) && isBetween(r.y, p.y, r.y + r.height);
   }
@@ -579,12 +653,12 @@ class Util
   // a point is inside a closed path if, when a linesegment connecting
   // that point to the origin is drawn, the number of intersections
   // of that line and the path is odd.
-  public static function pointInsideClosedPath< T: PointType> (pt: T, path:Array<Point>):Bool
+  public static function pointInsideClosedPath< T: Pt> (pt: T, path:Array<Point>):Bool
   {
     if (path.length < 2) return false;
     
     var intersections = 0;
-    var origin : PointType = {x:0, y:0};
+    var origin : Pt = {x:0, y:0};
 
     for (i in 0...path.length - 1)
       if (segmentsIntersect( origin, pt, path[i], path[i + 1]))
@@ -620,7 +694,7 @@ class Util
   // may be introduced into openfl's Point.distance method in the future:
   static var distPt1:Point;
   static var distPt2:Point;
-  public static function dist<P1:PointType, P2:PointType>(p1:P1,p2:P2):Float
+  public static function dist<P1:Pt, P2:Pt>(p1:P1,p2:P2):Float
   {
     if (distPt1 == null)
       {
@@ -637,14 +711,14 @@ class Util
     return Point.distance( distPt1, distPt2);
   }
 
-  public static function circleContainsPt<C:Circle,P:PointType>
+  public static function circleContainsPt<C:Circle,P:Pt>
     (circ:C, pt:P):Bool
   {
     return dist(circ, pt) <= circ.radius;
   }
 
   public static function circleIntersectsLineSegment
-  <C:Circle, P1:PointType, P2:PointType>
+  <C:Circle, P1:Pt, P2:Pt>
     ( circ: C, p1:P1, p2:P2):Bool
   {
     // if either enddpoint is in the circle, then we count an
@@ -675,12 +749,12 @@ class Util
       }
   }
 
-  public static function ptEquals<P1:PointType, P2:PointType>(a:P1,b:P2):Bool
+  public static function ptEquals<P1:Pt, P2:Pt>(a:P1,b:P2):Bool
   {
     return a.x == b.x && a.y == b.y;
   }
 
-  public static function lineOfSegment<P1:PointType, P2:PointType> ( a:P1, b:P2 ): Null<Line>
+  public static function lineOfSegment<P1:Pt, P2:Pt> ( a:P1, b:P2 ): Null<Line>
   {
     if (ptEquals(a, b )) return null;
     if (a.x == b.x) return Vertical(a.x);
@@ -692,13 +766,13 @@ class Util
   }
 
   public static function isCounterClockwiseOrder
-  <P1:PointType,P2:PointType,P3:PointType>
+  <P1:Pt,P2:Pt,P3:Pt>
   (a:P1,b:P2,c:P3):Bool {
     return (b.x - a.x) * (c.y - a.y) > (b.y - a.y) * (c.x - a.x);
   }
 
   public static function segmentsIntersect
-  <P1:PointType,P2:PointType,P3:PointType,P4:PointType>
+  <P1:Pt,P2:Pt,P3:Pt,P4:Pt>
   (a:P1,b:P2,c:P3,d:P4):Bool
   {
     return (isCounterClockwiseOrder( a, c, d) != isCounterClockwiseOrder(b, c, d)) &&
@@ -713,7 +787,7 @@ class Util
 
 
   public static function linesIntersectAt
-  <P1:PointType,P2:PointType,P3:PointType,P4:PointType>
+  <P1:Pt,P2:Pt,P3:Pt,P4:Pt>
     (a:P1,b:P2,c:P3,d:P4):Null<Point>
   {
     var segments = [lineOfSegment(a, b), lineOfSegment(c, d)];
@@ -757,7 +831,7 @@ class Util
   }
 
   public static function segmentIntersectsPath
-  <P1:PointType, P2:PointType, P3:PointType> 
+  <P1:Pt, P2:Pt, P3:Pt> 
     (p1:P1, p2:P2, path:Array<P3>) : Bool
   {
     if (path.length > 1)
