@@ -115,20 +115,22 @@ class Wiggler extends Sprite
   static inline var radiusGradient:Float = 5.0;
   static inline var radiiSizes:Int = 15;
 
-
   var path:Array<Point> = [];
-
 
   var circles:Array<ColoredCircle> = [];
 
   var bones:Map<Pt, Array<SkeletonNode>>;
   
+  var drift : Pt;
+
   public function new (path:Array<Point>)
   {
     super();
     this.path = Util.translatePathToOrigin( path );
     addCircles();
     addBones();
+
+    drift = {x: Math.random() * Util.randomSign(), y: Math.random() * Util.randomSign()};
 
     addEventListener(Event.ENTER_FRAME, perFrame);
     //render();
@@ -403,6 +405,13 @@ function perFrame (e)
             Util.rotatePtAboutPivot( hinge, follower, node.spin);
         }
     render();
+
+    this.x += drift.x;
+    this.y += drift.y;
+    if (this.x <= 0 || this.x + this.width >= stage.stageWidth)
+      drift.x *= -1;
+    if (this.y <= 0 || this.y + this.height >= stage.stageHeight)
+      drift.y *= -1;
   }
 
   static inline var ONE_DEGREE: Float = 0.01745329;
@@ -425,7 +434,8 @@ class DrawingScreen extends Sprite
      suitable for passing in as the "skin" of a wiggler. */
   
   var path: Array<Point> = [];
-
+  var wigglers:Array<Wiggler> = [];
+  
   var candidateWiggler:Wiggler;
 
   var holdPath:Bool = false;
@@ -474,7 +484,8 @@ class DrawingScreen extends Sprite
     Actuate.stop(this); 
     if (candidateWiggler != null)
       {
-        removeChild( candidateWiggler );
+        //removeChild( candidateWiggler );
+        wigglers.push(candidateWiggler);
         candidateWiggler = null;
       }
     graphics.clear();
@@ -573,6 +584,11 @@ enum Line {
 
 class Util
 {
+
+  public static function randomSign():Int
+  {
+    return if ( cointoss() ) -1 else 1;
+  }
 
   public static function cointoss():Bool
   {
