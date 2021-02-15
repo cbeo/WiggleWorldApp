@@ -50,7 +50,7 @@ class Button extends SimpleButton
   static var overColor:Int = 0xdddddd;
   static var upColor:Int = 0xeeeeee;
   static var downColor:Int = 0xcccccc;
-
+  
   static function textBox
   (text:String,
    bgColor:Int = 0xFFFFFF,
@@ -115,7 +115,7 @@ class Wiggler extends Sprite
   var radiusGradient:Float = 3.0;
   var radiiSizes:Int = 25;
 
-  var dontDrawLargerThanFactor = 0.2;
+  var dontDrawLargerThanFactor = 0.1;
   var circles:Array<ColoredCircle> = [];
 
   var bones:Map<Pt, Array<SkeletonNode>>;
@@ -127,7 +127,8 @@ class Wiggler extends Sprite
     addCircles();
     addBones();
 
-    render();
+    addEventListener(Event.ENTER_FRAME, perFrame);
+    //render();
   }
 
   // A circle is valid if it is contained within the boundary of the
@@ -270,8 +271,12 @@ class Wiggler extends Sprite
         var parentHinge:Pt =
           if (reverseBones.exists(node)) reverseBones[node] else {x:node.x + 10, y:node.y};
 
+        var neighborDistThreshold = radiusGradient * radiiSizes * 1.2;
+        var neighborMinRadius = radiusGradient * radiiSizes * 0.1;
         var validNeighbors =
-          candidates.filter( n -> n.radius <= node.radius
+          candidates.filter( n -> n.radius >= neighborMinRadius
+                             && n.radius <= node.radius
+                             && Util.dist(node,n) < neighborDistThreshold
                              && !Util.segmentIntersectsPath(node, n, path)
                              && !segmentIntersectsBones(node, n));
 
@@ -281,15 +286,20 @@ class Wiggler extends Sprite
         var newNbrs = validNeighbors.slice(0, toBranch);
 
         bones[node] = 
-          newNbrs.map( nbr -> ({
-                  butt: nbr,
-                  followers: [],
-                  active: false,
-                  startAngle: 0,
-                  stopAngle: 0,
-                  currentAngle: 0,
-                  spin: 0
-                  } : SkeletonNode));
+          newNbrs.map( nbr -> {
+              var currentAngle = Util.calcAngleBetween(node, parentHinge, nbr);
+              var startAngle = currentAngle - 10*ONE_DEGREE;
+              var stopAngle =currentAngle + 10 * ONE_DEGREE;
+              return ({
+                    butt: nbr,
+                    followers: [],
+                    active: false,
+                    startAngle: startAngle,
+                    stopAngle: stopAngle,
+                    currentAngle: currentAngle,
+                    spin: ONE_DEGREE * if (Util.cointoss()) -1 else 1
+                    } : SkeletonNode);
+            });
 
         for (nbr in newNbrs)
           {
@@ -312,7 +322,6 @@ class Wiggler extends Sprite
       associatePtWithNearestBone(pt);
     for (pt in path)
      associatePtWithNearestBone(pt);
-
   }
 
 
@@ -341,13 +350,13 @@ class Wiggler extends Sprite
           graphics.drawCircle( circ.x, circ.y, circ.radius);
         }    
     
-    for (hinge => nodes in bones)
-      for (node in nodes)
-        {
-          graphics.lineStyle(1,0xff0000);
-          graphics.moveTo(hinge.x, hinge.y);
-          graphics.lineTo(node.butt.x, node.butt.y);
-          graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
+    // for (hinge => nodes in bones)
+    //   for (node in nodes)
+    //     {
+    //       graphics.lineStyle(1,0xff0000);
+    //       graphics.moveTo(hinge.x, hinge.y);
+    //       graphics.lineTo(node.butt.x, node.butt.y);
+    //       graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
           //graphics.lineStyle(1,0x0000ff);
           // var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
           // for (follower in node.followers)
@@ -355,11 +364,11 @@ class Wiggler extends Sprite
           //     graphics.moveTo( mid.x, mid.y);
           //     graphics.lineTo( follower.x, follower.y);
           //   }
-        }
+    //        }
     
   }
 
-  function perFrame (e)
+function perFrame (e)
   {
     // each "point" has a transform matrix. Because we want the whole
     // shape to transform depending on the number of "butts" attached
@@ -370,12 +379,39 @@ class Wiggler extends Sprite
     // 2->3 butts: turn taking between the butts such that their
     // associated bones never intersect, and they move in the
     // direction of the whole wiggler's "drift" vector.
-
+    
     // 4->5 butts: synchronized expansion and contraction about a
     // "virtual line" that extends through the "bone" of hinge. A kind
     // of scissor effect.
+    
+    for (hinge => nodes in bones)
+      for (node in nodes)
+        {
+          if (!Util.isBetween( node.startAngle, node.currentAngle + node.spin, node.stopAngle) ||
+              boneIntersectsNeighbors(hinge, node, nodes) ||
+              Util.segmentIntersectsPath(hinge, node.butt, path))
+            node.spin *= -1;
+
+          node.currentAngle += node.spin;
+
+          Util.rotatePtAboutPivot( hinge, node.butt, node.spin);
+          for (follower in node.followers)
+            Util.rotatePtAboutPivot( hinge, follower, node.spin);
+        }
+    render();
   }
 
+  static inline var ONE_DEGREE: Float = 0.01745329;
+
+  static function boneIntersectsNeighbors
+  (hinge:Pt,node:SkeletonNode,nodes:Array<SkeletonNode>):Bool
+  {
+    for (n in nodes)
+      if (n != node && Math.abs(Util.calcAngleBetween(hinge,n.butt,node.butt)) < ONE_DEGREE*2)
+        return true;
+    return false;                       
+  }
+  
 }
 
 class DrawingScreen extends Sprite
@@ -534,6 +570,10 @@ enum Line {
 class Util
 {
 
+  public static function cointoss():Bool
+  {
+    return Math.random() >= 0.5;
+  }
 
   public static function dot<P1:Pt, P2:Pt>(p1:P1,p2:P2):Float
   {
@@ -541,7 +581,7 @@ class Util
   }
 
 
-  static function calcAngleBetween
+  public static function calcAngleBetween
   <P1:Pt,P2:Pt,P3:Pt>
     (center:P1, p1:P2, p2:P3):Float
   {
@@ -552,7 +592,7 @@ class Util
 
   }
 
-  static inline function rotatePtAboutPivot
+  public static function rotatePtAboutPivot
   <P1:Pt,P2:Pt>( pivot:P1, butt:P2, radians: Float)
   {
     var sine = Math.sin( radians );
