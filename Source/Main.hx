@@ -109,13 +109,16 @@ class Wiggler extends Sprite
   static inline var RADIUS_DRAW_THRESHHOLD = 25;
   static inline var BRANCHING_FACTOR = 5;
   static inline var QUADRANT_COEFF = 1.2;
+  static inline var dontDrawLargerThanFactor = 0.15;
+  static inline var neighborDistThresholdFactor = 1.2;
+  static inline var neighborMinRadiusFactor = 0.1;
+  static inline var radiusGradient:Float = 5.0;
+  static inline var radiiSizes:Int = 15;
+
 
   var path:Array<Point> = [];
 
-  var radiusGradient:Float = 3.0;
-  var radiiSizes:Int = 25;
 
-  var dontDrawLargerThanFactor = 0.1;
   var circles:Array<ColoredCircle> = [];
 
   var bones:Map<Pt, Array<SkeletonNode>>;
@@ -264,6 +267,9 @@ class Wiggler extends Sprite
             }
         }
 
+    var neighborDistThreshold = radiusGradient * radiiSizes * neighborDistThresholdFactor;
+    var neighborMinRadius = radiusGradient * radiiSizes * neighborMinRadiusFactor;
+
     // add bones
     while (frontier.length > 0)
       {
@@ -271,8 +277,6 @@ class Wiggler extends Sprite
         var parentHinge:Pt =
           if (reverseBones.exists(node)) reverseBones[node] else {x:node.x + 10, y:node.y};
 
-        var neighborDistThreshold = radiusGradient * radiiSizes * 1.2;
-        var neighborMinRadius = radiusGradient * radiiSizes * 0.1;
         var validNeighbors =
           candidates.filter( n -> n.radius >= neighborMinRadius
                              && n.radius <= node.radius
