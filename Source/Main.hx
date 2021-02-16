@@ -22,7 +22,7 @@ using Lambda;
 typedef Pt = { x:Float, y:Float};
 typedef HasVelocity =  {velocity: Pt};
 typedef Circle = Pt & {radius:Float};
-typedef HasColor = {color: Int};
+typedef HasColor = {color: Int, visible:Bool};
 typedef ColoredCircle = HasColor & Circle;
 
 typedef RectType = Pt & {width:Float,height:Float};
@@ -106,14 +106,13 @@ class Button extends SimpleButton
 
 class Wiggler extends Sprite
 {
-  static inline var RADIUS_DRAW_THRESHHOLD = 25;
   static inline var BRANCHING_FACTOR = 5;
   static inline var QUADRANT_COEFF = 1.2;
-  static inline var dontDrawLargerThanFactor = 0.15;
-  static inline var neighborDistThresholdFactor = 1.2;
-  static inline var neighborMinRadiusFactor = 0.1;
-  static inline var radiusGradient:Float = 5.0;
-  static inline var radiiSizes:Int = 15;
+  static inline var DONT_DRAW_THRESHOLD_COEFF = 0.15;
+  static inline var NEIGHBOR_DIST_THRESHOLD_COEFF = 1.2;
+  static inline var NEIGHBOR_MIN_RADIUS_COEFF = 0.1;
+  static inline var RADIUS_GRADIENT:Float = 4.0;
+  static inline var RADII_SIZES:Int = 25;
 
   public static var allWigglers:Array<Wiggler> = [];
 
@@ -139,6 +138,9 @@ class Wiggler extends Sprite
     addEventListener(Event.ADDED_TO_STAGE, (e) -> Wiggler.allWigglers.push(this));
   }
 
+  // some reusable variables for intersection
+  // detection. Wiggler.intersects fills these to prevent too much GC
+  // action
   var thisP0 = new Point();
   var thisP1 = new Point();
   var otherP0 = new Point();
@@ -189,20 +191,16 @@ class Wiggler extends Sprite
     return false;
   }
 
-  function randomCircle( box:Rectangle, radius:Float): ColoredCircle
-  {
-    var pt = Util.randomPointInRect( box );
-    return {x:pt.x, y:pt.y, color: Std.int(Math.random() * 0xFFFFFF), radius:radius};
-  }
-
   function addCircles()
   {
     circles = [];
     if (path.length > 2)
       {
         var bbox = Util.pathBoundingBox( path );
-        var rad = radiusGradient * radiiSizes;
+        var rad = RADIUS_GRADIENT * RADII_SIZES;
         var step = 1.25;
+        var dontDrawLargerThan = RADII_SIZES * RADIUS_GRADIENT * DONT_DRAW_THRESHOLD_COEFF;
+
         while (rad > 0)
           {
             for (cx in 0...Std.int(bbox.width / (step * rad)))
@@ -212,12 +210,13 @@ class Wiggler extends Sprite
                   x: cx * step * rad,
                   y:cy * step * rad,
                   radius:rad,
-                  color: Std.int(Math.random() * 0xFFFFFF)
+                  color: Std.int(Math.random() * 0xFFFFFF),
+                  visible: rad <= dontDrawLargerThan
                   };
 
                   if (isValidCircle( circ )) circles.push( circ );
                 }
-            rad -= radiusGradient;
+            rad -= RADIUS_GRADIENT;
           }
       }
   }
@@ -283,8 +282,8 @@ class Wiggler extends Sprite
     // start the frontier with the largest circle in each "quadrant"
     var bbox = Util.pathBoundingBox( path );
     var quad = new Rectangle(0,0,
-                             radiusGradient * radiiSizes * QUADRANT_COEFF,
-                             radiusGradient * radiiSizes * QUADRANT_COEFF );
+                             RADIUS_GRADIENT * RADII_SIZES * QUADRANT_COEFF,
+                             RADIUS_GRADIENT * RADII_SIZES * QUADRANT_COEFF );
 
     for (ix in 0...Math.floor( bbox.width / quad.width))
       for (iy in 0...Math.floor( bbox.height / quad.height))
@@ -299,8 +298,8 @@ class Wiggler extends Sprite
             }
         }
 
-    var neighborDistThreshold = radiusGradient * radiiSizes * neighborDistThresholdFactor;
-    var neighborMinRadius = radiusGradient * radiiSizes * neighborMinRadiusFactor;
+    var neighborDistThreshold = RADIUS_GRADIENT * RADII_SIZES * NEIGHBOR_DIST_THRESHOLD_COEFF;
+    var neighborMinRadius = RADIUS_GRADIENT * RADII_SIZES * NEIGHBOR_MIN_RADIUS_COEFF;
 
     // add bones
     while (frontier.length > 0)
@@ -358,6 +357,10 @@ class Wiggler extends Sprite
       associatePtWithNearestBone(pt);
     for (pt in path)
      associatePtWithNearestBone(pt);
+
+    for (c in circles)
+      if ( bones.exists(c) )
+        c.visible = false;
   }
 
 
@@ -377,10 +380,9 @@ class Wiggler extends Sprite
     graphicsPath.lineTo( path[0].x, path[0].y);
     graphics.drawPath( graphicsPath.commands, graphicsPath.data );
 
-    var dontDrawLargerThan = radiiSizes * radiusGradient * dontDrawLargerThanFactor;
     graphics.lineStyle(0.0);
     for (circ in circles)
-      if (circ.radius <= dontDrawLargerThan)
+      if (circ.visible)
         {
           graphics.beginFill( circ.color, 0.5);
           graphics.drawCircle( circ.x, circ.y, circ.radius);
