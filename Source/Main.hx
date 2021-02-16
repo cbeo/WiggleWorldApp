@@ -108,11 +108,12 @@ class Wiggler extends Sprite
 {
   static inline var BRANCHING_FACTOR = 5;
   static inline var QUADRANT_COEFF = 1.2;
-  static inline var DONT_DRAW_THRESHOLD_COEFF = 0.15;
-  static inline var NEIGHBOR_DIST_THRESHOLD_COEFF = 1.2;
+  static inline var DONT_DRAW_THRESHOLD_COEFF = 0.8;
+  static inline var NEIGHBOR_DIST_THRESHOLD_COEFF = 1.1;
   static inline var NEIGHBOR_MIN_RADIUS_COEFF = 0.1;
-  static inline var RADIUS_GRADIENT:Float = 4.0;
-  static inline var RADII_SIZES:Int = 25;
+  static inline var RADIUS_GRADIENT:Float = 5.0;
+  static inline var RADII_SIZES:Int = 20;
+  static inline var MAX_SPEED:Float = 2.0;
 
   public static var allWigglers:Array<Wiggler> = [];
 
@@ -131,7 +132,8 @@ class Wiggler extends Sprite
     addCircles();
     addBones();
 
-    drift = {x: Math.random() * Util.randomSign(), y: Math.random() * Util.randomSign()};
+    drift = {x: MAX_SPEED * Math.random() * Util.randomSign(),
+             y: MAX_SPEED * Math.random() * Util.randomSign()};
 
     addEventListener(Event.ENTER_FRAME, perFrame);
 
@@ -146,28 +148,66 @@ class Wiggler extends Sprite
   var otherP0 = new Point();
   var otherP1 = new Point();
 
-  public function intersects( other:Wiggler )
+  function intersects( other:Wiggler )
   {
     if (this == other) return false;
 
+    // for each segment in the path, check for intersection with each
+    // segment in the othe path
     for (i in 1...path.length)
-      for (j in 1... other.path.length)
-        {
-          thisP0.x = path[i-1].x + this.x;
-          thisP0.y = path[i-1].y + this.y;
-          thisP1.x = path[i].x + this.x;
-          thisP1.y = path[i].y + this.y;
+      {
+        thisP0.x = path[i-1].x + this.x;
+        thisP0.y = path[i-1].y + this.y;
+        thisP1.x = path[i].x + this.x;
+        thisP1.y = path[i].y + this.y;
 
-          otherP0.x = other.path[j-1].x + other.x;
-          otherP0.y = other.path[j-1].y + other.y;
-          otherP1.x = other.path[j].x + other.x;
-          otherP1.y = other.path[j].y + other.y;
-          
-          if (Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1))
-            return true;
-        }
-    return false;
+        for (j in 1... other.path.length)
+          {
+            otherP0.x = other.path[j-1].x + other.x;
+            otherP0.y = other.path[j-1].y + other.y;
+            otherP1.x = other.path[j].x + other.x;
+            otherP1.y = other.path[j].y + other.y;
+            
+            if (Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1))
+              return true;
+          }
+        // don't forget to check the last segment of the other 
+        otherP0.x = other.path[other.path.length-1].x + other.x;
+        otherP0.y = other.path[other.path.length-1].y + other.y;
+        otherP1.x = other.path[0].x + other.x;
+        otherP1.y = other.path[0].y + other.y;
+
+        if (Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1))
+          return true;
+      }
+
+    // also don't forget to check the very last semgent of this path
+    // with the other path
+    thisP0.x = path[path.length-1].x + this.x;
+    thisP0.y = path[path.length-1].y + this.y;
+    thisP1.x = path[0].x + this.x;
+    thisP1.y = path[0].y + this.y;
+
+    for (j in 1... other.path.length)
+      {
+        otherP0.x = other.path[j-1].x + other.x;
+        otherP0.y = other.path[j-1].y + other.y;
+        otherP1.x = other.path[j].x + other.x;
+        otherP1.y = other.path[j].y + other.y;
+        
+        if (Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1))
+          return true;
+      }
+
+    // finally check the last segments of both paths
+    otherP0.x = other.path[other.path.length-1].x + other.x;
+    otherP0.y = other.path[other.path.length-1].y + other.y;
+    otherP1.x = other.path[0].x + other.x;
+    otherP1.y = other.path[0].y + other.y;
+    
+    return Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1);
   }
+
   // A circle is valid if it is contained within the boundary of the
   // path and if it does not intersect any other circles.
   function isValidCircle( circ:ColoredCircle ): Bool
@@ -191,6 +231,7 @@ class Wiggler extends Sprite
     return false;
   }
 
+  var maxRadiusHere:Float = 0;
   function addCircles()
   {
     circles = [];
@@ -214,7 +255,11 @@ class Wiggler extends Sprite
                   visible: rad <= dontDrawLargerThan
                   };
 
-                  if (isValidCircle( circ )) circles.push( circ );
+                  if (isValidCircle( circ ))
+                    {
+                      circles.push( circ );
+                      maxRadiusHere = Math.max(rad, maxRadiusHere);
+                    }
                 }
             rad -= RADIUS_GRADIENT;
           }
@@ -299,6 +344,7 @@ class Wiggler extends Sprite
         }
 
     var neighborDistThreshold = RADIUS_GRADIENT * RADII_SIZES * NEIGHBOR_DIST_THRESHOLD_COEFF;
+
     var neighborMinRadius = RADIUS_GRADIENT * RADII_SIZES * NEIGHBOR_MIN_RADIUS_COEFF;
 
     // add bones
@@ -309,9 +355,9 @@ class Wiggler extends Sprite
           if (reverseBones.exists(node)) reverseBones[node] else {x:node.x + 10, y:node.y};
 
         var validNeighbors =
-          candidates.filter( n -> n.radius >= neighborMinRadius
+          candidates.filter( n -> n.radius >= neighborMinRadius 
                              && n.radius <= node.radius
-                             && Util.dist(node,n) < neighborDistThreshold
+                             && Util.dist(node,n) <= neighborDistThreshold 
                              && !Util.segmentIntersectsPath(node, n, path)
                              && !segmentIntersectsBones(node, n));
 
