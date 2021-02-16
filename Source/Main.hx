@@ -115,6 +115,8 @@ class Wiggler extends Sprite
   static inline var radiusGradient:Float = 5.0;
   static inline var radiiSizes:Int = 15;
 
+  public static var allWigglers:Array<Wiggler> = [];
+
   var path:Array<Point> = [];
 
   var circles:Array<ColoredCircle> = [];
@@ -133,9 +135,37 @@ class Wiggler extends Sprite
     drift = {x: Math.random() * Util.randomSign(), y: Math.random() * Util.randomSign()};
 
     addEventListener(Event.ENTER_FRAME, perFrame);
-    //render();
+
+    addEventListener(Event.ADDED_TO_STAGE, (e) -> Wiggler.allWigglers.push(this));
   }
 
+  var thisP0 = new Point();
+  var thisP1 = new Point();
+  var otherP0 = new Point();
+  var otherP1 = new Point();
+
+  public function intersects( other:Wiggler )
+  {
+    if (this == other) return false;
+
+    for (i in 1...path.length)
+      for (j in 1... other.path.length)
+        {
+          thisP0.x = path[i-1].x + this.x;
+          thisP0.y = path[i-1].y + this.y;
+          thisP1.x = path[i].x + this.x;
+          thisP1.y = path[i].y + this.y;
+
+          otherP0.x = other.path[j-1].x + other.x;
+          otherP0.y = other.path[j-1].y + other.y;
+          otherP1.x = other.path[j].x + other.x;
+          otherP1.y = other.path[j].y + other.y;
+          
+          if (Util.segmentsIntersect(thisP0,thisP1, otherP0,otherP1))
+            return true;
+        }
+    return false;
+  }
   // A circle is valid if it is contained within the boundary of the
   // path and if it does not intersect any other circles.
   function isValidCircle( circ:ColoredCircle ): Bool
@@ -412,6 +442,22 @@ function perFrame (e)
       drift.x *= -1;
     if (this.y <= 0 || this.y + this.height >= stage.stageHeight)
       drift.y *= -1;
+
+    for (wiggler in Wiggler.allWigglers)
+      if (wiggler != this && this.intersects( wiggler) )
+          bounceOff( wiggler );
+  }
+
+  function bounceOff(other: Wiggler)
+  {
+    var tmp = other.drift;
+    other.drift = this.drift;
+    this.drift = tmp;
+
+    this.x += drift.x;
+    this.y += drift.y;
+    other.x += other.drift.x;
+    other.y += other.drift.y;
   }
 
   static inline var ONE_DEGREE: Float = 0.01745329;
@@ -434,7 +480,7 @@ class DrawingScreen extends Sprite
      suitable for passing in as the "skin" of a wiggler. */
   
   var path: Array<Point> = [];
-  var wigglers:Array<Wiggler> = [];
+
   
   var candidateWiggler:Wiggler;
 
@@ -485,7 +531,6 @@ class DrawingScreen extends Sprite
     if (candidateWiggler != null)
       {
         //removeChild( candidateWiggler );
-        wigglers.push(candidateWiggler);
         candidateWiggler = null;
       }
     graphics.clear();
@@ -505,6 +550,7 @@ class DrawingScreen extends Sprite
   function onMouseUp (e)
   {
     drawing = false;
+    graphics.clear();
     if (!holdPath) fadeAndRefresh();
   }
   

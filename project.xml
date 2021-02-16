@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <project>
+  <window fps="30"/>
+
   <meta title="WiggleWorldApp"
         package="space.toyful.wiggleworld"
         version="1.0.0"
