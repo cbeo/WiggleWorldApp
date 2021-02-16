@@ -45,6 +45,11 @@ typedef SkeletonNode =
   spin:Float              // current direction of radial motion.
   };
 
+
+enum RenderPhase
+{ Circles; Skeleton; Clusters; Border;}
+
+
 class Button extends SimpleButton
 {
   static var overColor:Int = 0xdddddd;
@@ -125,6 +130,8 @@ class Wiggler extends Sprite
   
   var drift : Pt;
 
+  var renderPhases:Array<RenderPhase>;
+
   public function new (path:Array<Point>)
   {
     super();
@@ -134,6 +141,9 @@ class Wiggler extends Sprite
 
     drift = {x: MAX_SPEED * Math.random() * Util.randomSign(),
              y: MAX_SPEED * Math.random() * Util.randomSign()};
+
+    renderPhases = [ for (phase in [Circles, Skeleton, Clusters, Border]) if (Util.cointoss()) phase];
+        
 
     addEventListener(Event.ENTER_FRAME, perFrame);
 
@@ -416,57 +426,60 @@ class Wiggler extends Sprite
 
     graphics.clear();
 
-    var graphicsPath = new GraphicsPath();
-    graphicsPath.moveTo( path[0].x, path[0].y);
-    for (i in 1...path.length)
-      graphicsPath.lineTo( path[i].x, path[i].y);
+    // redner path
+    if (renderPhases.contains( Border))
+      {
+        var graphicsPath = new GraphicsPath();
+        graphicsPath.moveTo( path[0].x, path[0].y);
+        for (i in 1...path.length)
+          graphicsPath.lineTo( path[i].x, path[i].y);
+        
+        graphics.beginFill(0xfaeeee);
+        graphics.lineStyle(8.0);
+        graphicsPath.lineTo( path[0].x, path[0].y);
+        graphics.drawPath( graphicsPath.commands, graphicsPath.data );
+      }
 
-    graphics.beginFill(0xfaeeee);
-    graphics.lineStyle(8.0);
-    graphicsPath.lineTo( path[0].x, path[0].y);
-    graphics.drawPath( graphicsPath.commands, graphicsPath.data );
+    if (renderPhases.contains( Circles ))
+      {
+        graphics.lineStyle(0.0);
+        for (circ in circles)
+          if (circ.visible)
+            {
+              graphics.beginFill( circ.color, 0.5);
+              graphics.drawCircle( circ.x, circ.y, circ.radius);
+            }
+      }
 
-    graphics.lineStyle(0.0);
-    for (circ in circles)
-      if (circ.visible)
+    if (renderPhases.contains( Skeleton))
+      {
+        for (hinge => nodes in bones)
+          for (node in nodes)
         {
-          graphics.beginFill( circ.color, 0.5);
-          graphics.drawCircle( circ.x, circ.y, circ.radius);
-        }    
-    
-    // for (hinge => nodes in bones)
-    //   for (node in nodes)
-    //     {
-    //       graphics.lineStyle(1,0xff0000);
-    //       graphics.moveTo(hinge.x, hinge.y);
-    //       graphics.lineTo(node.butt.x, node.butt.y);
-    //       graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
-          //graphics.lineStyle(1,0x0000ff);
-          // var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
-          // for (follower in node.followers)
-          //   {
-          //     graphics.moveTo( mid.x, mid.y);
-          //     graphics.lineTo( follower.x, follower.y);
-          //   }
-    //        }
+          graphics.lineStyle(1,0xff0000);
+          graphics.moveTo(hinge.x, hinge.y);
+          graphics.lineTo(node.butt.x, node.butt.y);
+
+          if (renderPhases.contains(Clusters))
+            {
+              graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
+              var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
+              for (follower in node.followers)
+                {
+                  graphics.moveTo( mid.x, mid.y);
+                  graphics.lineTo( follower.x, follower.y);
+                }
+            }
+        }
+      }
     
   }
 
 function perFrame (e)
   {
-    // each "point" has a transform matrix. Because we want the whole
-    // shape to transform depending on the number of "butts" attached
-    // to each joint, the animation behavior varies.
-
-    // 1 butt: wide rotation about the joint's parent bone by , say 30 to 180 degrees
-
-    // 2->3 butts: turn taking between the butts such that their
-    // associated bones never intersect, and they move in the
-    // direction of the whole wiggler's "drift" vector.
-    
-    // 4->5 butts: synchronized expansion and contraction about a
-    // "virtual line" that extends through the "bone" of hinge. A kind
-    // of scissor effect.
+    var stamp  = haxe.Timer.stamp();
+    var cosStamp = Math.cos( stamp);
+    var sinStamp = Math.sin(stamp);
     
     for (hinge => nodes in bones)
       for (node in nodes)
@@ -479,10 +492,11 @@ function perFrame (e)
           node.currentAngle += node.spin;
 
           Util.rotatePtAboutPivot( hinge, node.butt, node.spin);
+
           for (follower in node.followers)
             Util.rotatePtAboutPivot( hinge, follower, node.spin);
+
         }
-    render();
 
     this.x += drift.x;
     this.y += drift.y;
@@ -494,6 +508,8 @@ function perFrame (e)
     for (wiggler in Wiggler.allWigglers)
       if (wiggler != this && this.intersects( wiggler) )
           bounceOff( wiggler );
+
+    render();
   }
 
   function bounceOff(other: Wiggler)
@@ -807,7 +823,7 @@ class Util
   // a point is inside a closed path if, when a linesegment connecting
   // that point to the origin is drawn, the number of intersections
   // of that line and the path is odd.
-  public static function pointInsideClosedPath< T: Pt> (pt: T, path:Array<Point>):Bool
+  public static function pointInsideClosedPath< P1:Pt, P2:Pt> (pt: P1, path:Array<P2>):Bool
   {
     if (path.length < 2) return false;
     
@@ -929,8 +945,9 @@ class Util
   <P1:Pt,P2:Pt,P3:Pt,P4:Pt>
   (a:P1,b:P2,c:P3,d:P4):Bool
   {
-    return (isCounterClockwiseOrder( a, c, d) != isCounterClockwiseOrder(b, c, d)) &&
-      (isCounterClockwiseOrder( a ,b, c) != isCounterClockwiseOrder(a, b, d));
+    return ptEquals(a,c) || ptEquals(a,d) || ptEquals(b,c) || ptEquals(b,d)
+      || ((isCounterClockwiseOrder( a, c, d) != isCounterClockwiseOrder(b, c, d))
+          && (isCounterClockwiseOrder( a ,b, c) != isCounterClockwiseOrder(a, b, d)));
   }
 
 
