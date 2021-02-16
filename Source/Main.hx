@@ -49,7 +49,6 @@ typedef SkeletonNode =
 enum RenderPhase
 { Circles; Skeleton; Clusters; Border;}
 
-
 class Button extends SimpleButton
 {
   static var overColor:Int = 0xdddddd;
@@ -142,8 +141,8 @@ class Wiggler extends Sprite
     drift = {x: MAX_SPEED * Math.random() * Util.randomSign(),
              y: MAX_SPEED * Math.random() * Util.randomSign()};
 
-    renderPhases = [ for (phase in [Circles, Skeleton, Clusters, Border]) if (Util.cointoss()) phase];
-        
+    //renderPhases = [ for (phase in [Circles, Skeleton, Clusters, Border]) if (Util.cointoss()) phase];
+    renderPhases = [Circles, Border];
 
     addEventListener(Event.ENTER_FRAME, perFrame);
 
@@ -451,36 +450,29 @@ class Wiggler extends Sprite
             }
       }
 
-    if (renderPhases.contains( Skeleton))
+    if (renderPhases.contains( Clusters ))
       {
         for (hinge => nodes in bones)
           for (node in nodes)
         {
-          graphics.lineStyle(1,0xff0000);
-          graphics.moveTo(hinge.x, hinge.y);
-          graphics.lineTo(node.butt.x, node.butt.y);
-
-          if (renderPhases.contains(Clusters))
+          // graphics.lineStyle(1,0xff0000);
+          // graphics.moveTo(hinge.x, hinge.y);
+          // graphics.lineTo(node.butt.x, node.butt.y);
+          graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
+          var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
+          for (follower in node.followers)
             {
-              graphics.lineStyle(4, Std.int(Math.random() * 0xffffff));
-              var mid = {x: (hinge.x + node.butt.x)/2, y:(hinge.y + node.butt.y)/2};
-              for (follower in node.followers)
-                {
-                  graphics.moveTo( mid.x, mid.y);
-                  graphics.lineTo( follower.x, follower.y);
-                }
+              graphics.moveTo( mid.x, mid.y);
+              graphics.lineTo( follower.x, follower.y);
             }
         }
       }
-    
   }
+  
+
 
 function perFrame (e)
   {
-    var stamp  = haxe.Timer.stamp();
-    var cosStamp = Math.cos( stamp);
-    var sinStamp = Math.sin(stamp);
-    
     for (hinge => nodes in bones)
       for (node in nodes)
         {
@@ -495,11 +487,11 @@ function perFrame (e)
 
           for (follower in node.followers)
             Util.rotatePtAboutPivot( hinge, follower, node.spin);
-
         }
 
     this.x += drift.x;
     this.y += drift.y;
+
     if (this.x <= 0 || this.x + this.width >= stage.stageWidth)
       drift.x *= -1;
     if (this.y <= 0 || this.y + this.height >= stage.stageHeight)
@@ -508,6 +500,9 @@ function perFrame (e)
     for (wiggler in Wiggler.allWigglers)
       if (wiggler != this && this.intersects( wiggler) )
           bounceOff( wiggler );
+
+    this.x = Math.max(1,Math.min(stage.stageWidth - (this.width + 1), this.x));
+    this.y = Math.max(1,Math.min(stage.stageHeight - (this.height + 1), this.y));
 
     render();
   }
@@ -522,6 +517,19 @@ function perFrame (e)
     this.y += drift.y;
     other.x += other.drift.x;
     other.y += other.drift.y;
+
+    if (!renderPhases.contains( Clusters ))
+      {
+        renderPhases.push( Clusters);
+        Actuate.timer(0.25).onComplete( () -> renderPhases.remove( Clusters ));
+      }
+
+    if (!other.renderPhases.contains( Clusters ))
+      {
+        other.renderPhases.push( Clusters);
+        Actuate.timer(0.25).onComplete( () -> other.renderPhases.remove( Clusters ));
+      }
+
   }
 
   static inline var ONE_DEGREE: Float = 0.01745329;
