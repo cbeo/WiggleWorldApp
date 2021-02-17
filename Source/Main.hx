@@ -133,7 +133,7 @@ class Wiggler extends Sprite
 
   var color:Int = Std.int(Math.random() * 0xFFFFFF); //0xFAEEEE;
   var borderColor:Int = Std.int(Math.random() * 0xFFFFFF);
-  var offset:Float = Math.random() * 5;
+  var offset:Float = Math.random() * 15;
   var fadeSpeed:Float = Math.random() * 6;
 
   var collisionsLeft = 10 + Std.int(50 * Math.random());
