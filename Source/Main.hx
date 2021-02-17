@@ -431,6 +431,8 @@ class Wiggler extends Sprite
     graphics.clear();
 
     var stamp = haxe.Timer.stamp();
+    var fade1 = Math.cos(this.fadeSpeed * stamp);
+    var fade2 = Math.sin(this.fadeSpeed * stamp);
 
     // redner path
     if (renderPhases.contains( Border))
@@ -441,21 +443,20 @@ class Wiggler extends Sprite
           graphicsPath.lineTo( path[i].x, path[i].y);
         
         graphics.beginFill( this.color);
-        graphics.lineStyle(this.offset * (0.5 + Math.cos( this.fadeSpeed * stamp)),
-                           this.borderColor);
+        graphics.lineStyle(1 + this.offset * (1 + fade1), this.borderColor);
         graphicsPath.lineTo( path[0].x, path[0].y);
         graphics.drawPath( graphicsPath.commands, graphicsPath.data );
       }
 
     if (renderPhases.contains( Circles ))
       {
-        graphics.lineStyle(Math.random() * this.offset,
+        graphics.lineStyle( this.offset,
                            this.borderColor,
-                           Math.cos(stamp + this.offset));
+                           fade1);
         for (circ in circles)
           if (circ.visible)
             {
-              graphics.beginFill( circ.color,  1 + 0.5 * Math.sin(stamp * fadeSpeed * 0.5));
+              graphics.beginFill( circ.color,  0.5 + 0.5 * (1 + fade2));
               graphics.drawCircle( circ.x, circ.y, circ.radius);
             }
       }
