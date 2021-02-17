@@ -47,66 +47,8 @@ typedef SkeletonNode =
 
 
 enum RenderPhase
-{ Circles; Skeleton; Clusters; Border;}
+{ Circles; Clusters; Border;}
 
-class Button extends SimpleButton
-{
-  static var overColor:Int = 0xdddddd;
-  static var upColor:Int = 0xeeeeee;
-  static var downColor:Int = 0xcccccc;
-  
-  static function textBox
-  (text:String,
-   bgColor:Int = 0xFFFFFF,
-   ?textFormat:TextFormat,
-   ?borderRadius:Float = 0.0,
-   ?padding:Float = 40.0,
-   ?borderThickness:Float = 0.0,
-   ?borderColor:Int = 0
-  ):Sprite
-  {
-    var tf = new TextField();
-    tf.multiline = false;
-    tf.autoSize = openfl.text.TextFieldAutoSize.CENTER;
-    tf.selectable = false;
-    tf.text = text;
-
-    if (textFormat != null)
-      tf.setTextFormat( textFormat );
-
-    var s = new Sprite();
-    s.graphics.beginFill( bgColor );
-
-    if (borderThickness > 0)
-      s.graphics.lineStyle( borderThickness, borderColor);
-
-    s.graphics.drawRoundRect(0, 0,
-                             tf.textWidth + padding,
-                             tf.textHeight + padding,
-                             borderRadius,
-                             borderRadius );
-    s.graphics.endFill();
-
-    tf.x = (s.width - tf.textWidth) / 2;
-    tf.y = (s.height - tf.textHeight) / 2;
-
-    s.addChild( tf );
-    return s;
-  }
-  
-  public function new (text:String)
-  {
-    var textFormat = new TextFormat(null, 25);
-
-    var over = textBox(text, overColor, textFormat, 10.0, 50, 2 );
-    var up = textBox(text, upColor, textFormat, 10.0, 50, 2);
-    var down = textBox(text, downColor, textFormat, 10.0, 50, 2);
-
-    super( up , over, down, over);
-    this.enabled = true;
-  }
-
-}
 
 class Wiggler extends Sprite
 {
@@ -121,6 +63,8 @@ class Wiggler extends Sprite
 
   public static var allWigglers:Array<Wiggler> = [];
 
+  var staticWiggler = true;
+
   var path:Array<Point> = [];
 
   var circles:Array<ColoredCircle> = [];
@@ -131,23 +75,32 @@ class Wiggler extends Sprite
 
   var renderPhases:Array<RenderPhase>;
 
-  var color:Int = Std.int(Math.random() * 0xFFFFFF); //0xFAEEEE;
+  public var color:Int = Std.int(Math.random() * 0xFFFFFF); //0xFAEEEE;
   var borderColor:Int = Std.int(Math.random() * 0xFFFFFF);
   var offset:Float = Math.random() * 15;
   var fadeSpeed:Float = Math.random() * 6;
 
   var collisionsLeft = 10 + Std.int(50 * Math.random());
+
+  public static function clearWigglers()
+  {
+    for (wiggler  in allWigglers)
+      wiggler.destroy();
+    allWigglers = [];
+  }
   
-  public function new (path:Array<Point>)
+  public function new (path:Array<Point>, ?staticWigglerMode = false)
   {
     super();
+    this.staticWiggler = staticWigglerMode;
     this.path = Util.translatePathToOrigin( path );
     addCircles();
     addBones();
 
-
-    drift = {x: MAX_SPEED * Math.random() * Util.randomSign(),
-             y: MAX_SPEED * Math.random() * Util.randomSign()};
+    drift =
+      if (staticWiggler) {x:0,y:0}
+      else {x: MAX_SPEED * Math.random() * Util.randomSign(),
+            y: MAX_SPEED * Math.random() * Util.randomSign()};
 
     renderPhases = [Circles, Border];
 
@@ -156,14 +109,33 @@ class Wiggler extends Sprite
     Wiggler.allWigglers.push(this);
 
     // destroy wigglers with no bones, but let them show up for a second first.
-    var bonecount = 0;
-    for (v in bones) bonecount += 1;
-    if (bonecount == 0)
+    if (!staticWiggler)
       {
-        destroyInitiated = true;
-        Actuate.timer(0.5).onComplete( destroy );
+        var bonecount = 0;
+        for (v in bones) bonecount += 1;
+        if (bonecount == 0)
+          {
+            destroyInitiated = true;
+            Actuate.timer(0.5).onComplete( destroy );
+          }
       }
   }
+
+#if editing
+  public static function saveWigglers()
+  {
+    var wigglers =
+      allWigglers.map( w -> {
+        width: w.width, height:w.height,
+        x: w.x, y: w.y,
+        path: w.path.map(xy -> {x: xy.x, y:xy.y}),
+        color: w.color
+            });
+
+    sys.io.File.saveContent("title.json", haxe.Json.stringify( wigglers ));
+    trace('wrote splash.json');
+  }
+#end
 
   // some reusable variables for intersection
   // detection. Wiggler.intersects fills these to prevent too much GC
@@ -517,18 +489,21 @@ function perFrame (e)
     this.x += drift.x;
     this.y += drift.y;
 
-    if (this.x <= 0 || this.x + this.width >= stage.stageWidth)
-      drift.x *= -1;
-    if (this.y <= 0 || this.y + this.height >= stage.stageHeight)
-      drift.y *= -1;
+    if (!staticWiggler)
+      {
+        if (this.x <= 0 || this.x + this.width >= stage.stageWidth)
+          drift.x *= -1;
+        if (this.y <= 0 || this.y + this.height >= stage.stageHeight)
+          drift.y *= -1;
+        
+        for (wiggler in Wiggler.allWigglers)
+          if (wiggler != this && this.intersects( wiggler) )
+            bounceOff( wiggler );
 
-    for (wiggler in Wiggler.allWigglers)
-      if (wiggler != this && this.intersects( wiggler) )
-          bounceOff( wiggler );
-
-    this.x = Math.max(1,Math.min(stage.stageWidth - (this.width + 1), this.x));
-    this.y = Math.max(1,Math.min(stage.stageHeight - (this.height + 1), this.y));
-
+        this.x = Math.max(1,Math.min(stage.stageWidth - (this.width + 1), this.x));
+        this.y = Math.max(1,Math.min(stage.stageHeight - (this.height + 1), this.y));
+      }
+    
     render();
   }
 
@@ -599,6 +574,8 @@ class DrawingScreen extends Sprite
   /* the prupose of which is to produce a path of a closed polygon
      suitable for passing in as the "skin" of a wiggler. */
   
+  public static var staticWigglerMode = false;
+
   var path: Array<Point> = [];
   
   var candidateWiggler:Wiggler;
@@ -737,7 +714,7 @@ class DrawingScreen extends Sprite
 
     var bbox = Util.pathBoundingBox( path );
 
-    candidateWiggler = new Wiggler( path );
+    candidateWiggler = new Wiggler( path , staticWigglerMode);
     candidateWiggler.x = bbox.x;
     candidateWiggler.y = bbox.y;
 
@@ -1096,6 +1073,44 @@ class Util
   
 }
 
+class SplashScreen extends Sprite
+{
+  public function new ()
+  {
+    super();
+    addEventListener(Event.ADDED_TO_STAGE, init);
+  }
+
+  function init (e)
+  {
+    var json = openfl.Assets.getText("assets/title.json");
+    var wigglers :Array<{path:Array<Pt>, color:Int, x:Float,y:Float,width:Float,height:Float}> = haxe.Json.parse(json);
+    
+    var maxX= 0.0;
+    var maxY = 0.0;
+    for (wiggler in wigglers)
+      {
+        maxX = Math.max(wiggler.x + wiggler.width, maxX);
+        maxY = Math.max(wiggler.y + wiggler.width, maxY);
+      }
+    var horizScale = Math.min(0.5, stage.stageWidth / maxX);
+    var vertScale =  Math.min(0.5, stage.stageHeight / maxY);
+    for (wiggler in wigglers)
+      {
+        var w = new Wiggler( wiggler.path.map( p -> new Point(p.x, p.y)), true);
+        w.color = wiggler.color;
+        w.scaleX = horizScale;
+        w.scaleY = vertScale;
+        w.x = wiggler.x * horizScale;
+        w.y = wiggler.y * vertScale;
+        addChild(w);
+      }
+    
+  }
+
+}
+
+
 class Main extends Sprite
 {
   public function new()
@@ -1106,8 +1121,22 @@ class Main extends Sprite
 
   function onInit (e)
   {
-    var screen = new DrawingScreen();
-    addChild( screen );
+#if editing
+    DrawingScreen.staticWigglerMode = true;
+    stage.addEventListener(KeyboardEvent.KEY_DOWN, (e) -> Wiggler.saveWigglers());
+    addChild(new DrawingScreen() );
+#else
+    addChild(new SplashScreen());
+    stage.addEventListener(MouseEvent.MOUSE_DOWN, start);
+#end
+  }
+
+  function start (e)
+  {
+    stage.removeEventListener(MouseEvent.MOUSE_DOWN, start);
+    Wiggler.clearWigglers();
+    removeChildren();
+    addChild(new DrawingScreen());
   }
   
 }
