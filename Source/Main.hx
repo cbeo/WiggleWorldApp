@@ -136,7 +136,7 @@ class Wiggler extends Sprite
   var offset:Float = Math.random() * 5;
   var fadeSpeed:Float = Math.random() * 6;
 
-  var collisionsLeft = 10;
+  var collisionsLeft = 10 + Std.int(50 * Math.random());
   
   public function new (path:Array<Point>)
   {
@@ -437,6 +437,7 @@ class Wiggler extends Sprite
     var fade1 = 0.5 * (1 + Math.cos(this.fadeSpeed * stamp));
     var fade2 = 0.5 * (1 + Math.sin(this.fadeSpeed * stamp));
     var slowfade1 = 0.5 * (1 + Math.cos(this.fadeSpeed * 0.25 * stamp));
+    var slowfade2 = 0.5 * (1 + Math.cos(offset + this.fadeSpeed * 0.5 * stamp));
 
     // redner path
     if (renderPhases.contains( Border))
@@ -447,20 +448,20 @@ class Wiggler extends Sprite
           graphicsPath.lineTo( path[i].x, path[i].y);
         
         graphics.beginFill( this.color, slowfade1);
-        graphics.lineStyle(1 + this.offset * fade1, this.borderColor);
+        graphics.lineStyle(this.offset * fade1, this.borderColor);
         graphicsPath.lineTo( path[0].x, path[0].y);
         graphics.drawPath( graphicsPath.commands, graphicsPath.data );
       }
 
     if (renderPhases.contains( Circles ))
       {
-        graphics.lineStyle( this.offset,
+        graphics.lineStyle(this.offset,
                            this.borderColor,
                            fade1);
         for (circ in circles)
           if (circ.visible)
             {
-              graphics.beginFill( circ.color,  fade2);
+              graphics.beginFill( circ.color,  slowfade2);
               graphics.drawCircle( circ.x, circ.y, circ.radius);
             }
       }
@@ -629,7 +630,7 @@ class DrawingScreen extends Sprite
     timestamp = haxe.Timer.stamp();
     path = [ new Point(e.localX, e.localY) ];
 
-    graphics.lineStyle(2, 0);
+    graphics.lineStyle(2, 0xFFFFFF);
     graphics.moveTo( path[0].x, path[0].y );
   }
 
@@ -665,7 +666,7 @@ class DrawingScreen extends Sprite
   function clearAndRenderPath()
   {
     graphics.clear();
-    graphics.lineStyle(2, 0);
+    graphics.lineStyle(2, 0xFFFFFF);
     graphics.moveTo(path[0].x, path[0].y);
     for (i in 1...path.length)
       graphics.lineTo(path[i].x, path[i].y);
