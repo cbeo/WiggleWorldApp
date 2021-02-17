@@ -131,6 +131,11 @@ class Wiggler extends Sprite
 
   var renderPhases:Array<RenderPhase>;
 
+  var color:Int = Std.int(Math.random() * 0xFFFFFF); //0xFAEEEE;
+  var borderColor:Int = Std.int(Math.random() * 0xFFFFFF);
+  var offset:Float = Math.random() * 5;
+  var fadeSpeed:Float = Math.random() * 6;
+  
   public function new (path:Array<Point>)
   {
     super();
@@ -425,6 +430,8 @@ class Wiggler extends Sprite
 
     graphics.clear();
 
+    var stamp = haxe.Timer.stamp();
+
     // redner path
     if (renderPhases.contains( Border))
       {
@@ -433,19 +440,22 @@ class Wiggler extends Sprite
         for (i in 1...path.length)
           graphicsPath.lineTo( path[i].x, path[i].y);
         
-        graphics.beginFill(0xfaeeee);
-        graphics.lineStyle(8.0);
+        graphics.beginFill( this.color);
+        graphics.lineStyle(this.offset * (0.5 + Math.cos( this.fadeSpeed * stamp)),
+                           this.borderColor);
         graphicsPath.lineTo( path[0].x, path[0].y);
         graphics.drawPath( graphicsPath.commands, graphicsPath.data );
       }
 
     if (renderPhases.contains( Circles ))
       {
-        graphics.lineStyle(0.0);
+        graphics.lineStyle(Math.random() * this.offset,
+                           this.borderColor,
+                           Math.cos(stamp + this.offset));
         for (circ in circles)
           if (circ.visible)
             {
-              graphics.beginFill( circ.color, 0.5);
+              graphics.beginFill( circ.color,  1 + 0.5 * Math.sin(stamp * fadeSpeed * 0.5));
               graphics.drawCircle( circ.x, circ.y, circ.radius);
             }
       }
@@ -552,7 +562,6 @@ class DrawingScreen extends Sprite
      suitable for passing in as the "skin" of a wiggler. */
   
   var path: Array<Point> = [];
-
   
   var candidateWiggler:Wiggler;
 
