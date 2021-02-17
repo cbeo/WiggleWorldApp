@@ -145,16 +145,27 @@ class Wiggler extends Sprite
     addCircles();
     addBones();
 
+
     drift = {x: MAX_SPEED * Math.random() * Util.randomSign(),
              y: MAX_SPEED * Math.random() * Util.randomSign()};
 
-    //renderPhases = [ for (phase in [Circles, Skeleton, Clusters, Border]) if (Util.cointoss()) phase];
     renderPhases = [Circles, Border];
 
     addEventListener(Event.ENTER_FRAME, perFrame);
 
-    //    addEventListener(Event.ADDED_TO_STAGE, (e) -> Wiggler.allWigglers.push(this));
     Wiggler.allWigglers.push(this);
+
+    // destroy wigglers with no bones, but let them show up for a second first.
+    Actuate.timer(0.45).onComplete(() -> {
+        var bonecount = 0;
+        for (v in bones) bonecount += 1;
+        if (bonecount == 0)
+          {
+            destroyInitiated = true;
+            destroy();
+          }
+      });
+
   }
 
   // some reusable variables for intersection
@@ -382,23 +393,25 @@ class Wiggler extends Sprite
 
         var toBranch = Math.ceil(Math.random() * BRANCHING_FACTOR);
         var newNbrs = validNeighbors.slice(0, toBranch);
-
-        bones[node] = 
-          newNbrs.map( nbr -> {
-              var currentAngle = Util.calcAngleBetween(node, parentHinge, nbr);
-              var startAngle = currentAngle - 10*ONE_DEGREE;
-              var stopAngle =currentAngle + 10 * ONE_DEGREE;
-              return ({
+        if (newNbrs.length > 0)
+          {
+            bones[node] = 
+              newNbrs.map( nbr -> {
+                  var currentAngle = Util.calcAngleBetween(node, parentHinge, nbr);
+                  var startAngle = currentAngle - 10*ONE_DEGREE;
+                  var stopAngle =currentAngle + 10 * ONE_DEGREE;
+                  return ({
                     butt: nbr,
-                    followers: [],
-                    active: false,
-                    startAngle: startAngle,
-                    stopAngle: stopAngle,
-                    currentAngle: currentAngle,
-                    spin: ONE_DEGREE * if (Util.cointoss()) -1 else 1
-                    } : SkeletonNode);
-            });
-
+                        followers: [],
+                        active: false,
+                        startAngle: startAngle,
+                        stopAngle: stopAngle,
+                        currentAngle: currentAngle,
+                        spin: ONE_DEGREE * if (Util.cointoss()) -1 else 1
+                                                                          } : SkeletonNode);
+                });
+          }
+        
         for (nbr in newNbrs)
           {
             reverseBones[nbr] = node;
@@ -636,10 +649,8 @@ class DrawingScreen extends Sprite
 
   function refresh ()
   {
-    Actuate.stop(this); 
     if (candidateWiggler != null)
       {
-        //removeChild( candidateWiggler );
         candidateWiggler = null;
       }
     graphics.clear();
@@ -649,18 +660,11 @@ class DrawingScreen extends Sprite
     holdPath = false;
   }
 
-  function fadeAndRefresh()
-  {
-    Actuate
-      .tween(this, 0.5, {alpha: 0})
-      .onComplete( refresh );
-  }
-
   function onMouseUp (e)
   {
     drawing = false;
     graphics.clear();
-    if (!holdPath) fadeAndRefresh();
+    if (!holdPath) refresh();
   }
   
   function clearAndRenderPath()
