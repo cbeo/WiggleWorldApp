@@ -612,7 +612,7 @@ class DrawingScreen extends Sprite
     addEventListener(MouseEvent.MOUSE_UP, onMouseUp);
     addEventListener(MouseEvent.MOUSE_OUT, onMouseUp);
     addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);
-    addEventListener(Event.ADDED_TO_STAGE, maximizeHitArea);
+    addEventListener(Event.ADDED_TO_STAGE, addedToStage);
   }
 
   /* Event Handling */
@@ -624,13 +624,29 @@ class DrawingScreen extends Sprite
   var drawing = false;
   var timestamp:Float;
 
-  function maximizeHitArea(e)
+  function addedToStage (e)
   {
-    var hitBox = new Sprite();
-    hitBox.graphics.beginFill(0);
-    hitBox.graphics.drawRect( 0, 0, stage.stageWidth, stage.stageHeight);
-    hitBox.mouseEnabled = false;
-    this.hitArea = hitBox;
+    maximizeHitArea();
+    stage.addEventListener(Event.RESIZE, (e) -> maximizeHitArea());
+  }
+  
+  function maximizeHitArea()
+  {
+    if (this.hitArea == null)
+      {
+        var hitBox = new Sprite();
+        hitBox.graphics.beginFill(0);
+        hitBox.graphics.drawRect( 0, 0, stage.stageWidth, stage.stageHeight);
+        hitBox.mouseEnabled = false;
+        this.hitArea = hitBox;
+      }
+    else
+      {
+        this.hitArea.graphics.clear();
+        this.hitArea.graphics.beginFill(0);
+        this.hitArea.graphics.drawRect( 0, 0, stage.stageWidth, stage.stageHeight);
+        this.hitArea.mouseEnabled = false;
+      }
   }
 
   function onMouseDown (e)
