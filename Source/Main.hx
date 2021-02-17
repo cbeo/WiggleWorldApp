@@ -404,7 +404,7 @@ class Wiggler extends Sprite
                         startAngle: startAngle,
                         stopAngle: stopAngle,
                         currentAngle: currentAngle,
-                        spin: Math.random() * 2 * ONE_DEGREE * if (Util.cointoss()) -1 else 1
+                        spin: Math.random() * 1.5 * ONE_DEGREE * if (Util.cointoss()) -1 else 1
                     } : SkeletonNode);
                 });
           }
@@ -435,7 +435,6 @@ class Wiggler extends Sprite
       if ( bones.exists(c) )
         c.visible = false;
   }
-
 
   public function render ()
   {
