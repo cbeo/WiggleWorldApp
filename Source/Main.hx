@@ -135,6 +135,8 @@ class Wiggler extends Sprite
   var borderColor:Int = Std.int(Math.random() * 0xFFFFFF);
   var offset:Float = Math.random() * 5;
   var fadeSpeed:Float = Math.random() * 6;
+
+  var collisionsLeft = 10;
   
   public function new (path:Array<Point>)
   {
@@ -151,7 +153,8 @@ class Wiggler extends Sprite
 
     addEventListener(Event.ENTER_FRAME, perFrame);
 
-    addEventListener(Event.ADDED_TO_STAGE, (e) -> Wiggler.allWigglers.push(this));
+    //    addEventListener(Event.ADDED_TO_STAGE, (e) -> Wiggler.allWigglers.push(this));
+    Wiggler.allWigglers.push(this);
   }
 
   // some reusable variables for intersection
@@ -431,8 +434,9 @@ class Wiggler extends Sprite
     graphics.clear();
 
     var stamp = haxe.Timer.stamp();
-    var fade1 = Math.cos(this.fadeSpeed * stamp);
-    var fade2 = Math.sin(this.fadeSpeed * stamp);
+    var fade1 = 0.5 * (1 + Math.cos(this.fadeSpeed * stamp));
+    var fade2 = 0.5 * (1 + Math.sin(this.fadeSpeed * stamp));
+    var slowfade1 = 0.5 * (1 + Math.cos(this.fadeSpeed * 0.25 * stamp));
 
     // redner path
     if (renderPhases.contains( Border))
@@ -442,8 +446,8 @@ class Wiggler extends Sprite
         for (i in 1...path.length)
           graphicsPath.lineTo( path[i].x, path[i].y);
         
-        graphics.beginFill( this.color);
-        graphics.lineStyle(1 + this.offset * (1 + fade1), this.borderColor);
+        graphics.beginFill( this.color, slowfade1);
+        graphics.lineStyle(1 + this.offset * fade1, this.borderColor);
         graphicsPath.lineTo( path[0].x, path[0].y);
         graphics.drawPath( graphicsPath.commands, graphicsPath.data );
       }
@@ -456,7 +460,7 @@ class Wiggler extends Sprite
         for (circ in circles)
           if (circ.visible)
             {
-              graphics.beginFill( circ.color,  0.5 + 0.5 * (1 + fade2));
+              graphics.beginFill( circ.color,  fade2);
               graphics.drawCircle( circ.x, circ.y, circ.radius);
             }
       }
@@ -541,7 +545,29 @@ function perFrame (e)
         Actuate.timer(0.25).onComplete( () -> other.renderPhases.remove( Clusters ));
       }
 
+    collisionsLeft -= 1;
+    destroyCheck();
+    other.collisionsLeft -= 1;
+    other.destroyCheck();
   }
+
+  var destroyInitiated = false;
+  function destroyCheck()
+  {
+    if (!destroyInitiated && collisionsLeft <= 0)
+      {
+        destroyInitiated = true;
+        Actuate.tween(this, 1.0, {alpha: 0.0}).onComplete( this.destroy);
+      }
+  }
+
+  function destroy()
+  {
+    removeEventListener(Event.ENTER_FRAME, perFrame);
+    Wiggler.allWigglers.remove( this );
+    this.parent.removeChild( this );
+  }
+    
 
   static inline var ONE_DEGREE: Float = 0.01745329;
 
