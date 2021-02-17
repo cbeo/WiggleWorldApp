@@ -156,16 +156,13 @@ class Wiggler extends Sprite
     Wiggler.allWigglers.push(this);
 
     // destroy wigglers with no bones, but let them show up for a second first.
-    Actuate.timer(0.45).onComplete(() -> {
-        var bonecount = 0;
-        for (v in bones) bonecount += 1;
-        if (bonecount == 0)
-          {
-            destroyInitiated = true;
-            destroy();
-          }
-      });
-
+    var bonecount = 0;
+    for (v in bones) bonecount += 1;
+    if (bonecount == 0)
+      {
+        destroyInitiated = true;
+        Actuate.timer(0.5).onComplete( destroy );
+      }
   }
 
   // some reusable variables for intersection
@@ -407,8 +404,8 @@ class Wiggler extends Sprite
                         startAngle: startAngle,
                         stopAngle: stopAngle,
                         currentAngle: currentAngle,
-                        spin: ONE_DEGREE * if (Util.cointoss()) -1 else 1
-                                                                          } : SkeletonNode);
+                        spin: Math.random() * 2 * ONE_DEGREE * if (Util.cointoss()) -1 else 1
+                    } : SkeletonNode);
                 });
           }
         
@@ -561,6 +558,7 @@ function perFrame (e)
 
     collisionsLeft -= 1;
     destroyCheck();
+
     other.collisionsLeft -= 1;
     other.destroyCheck();
   }
