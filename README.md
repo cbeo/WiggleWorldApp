@@ -7,3 +7,8 @@ about.  Then I thought, wouldn't it be kinda fun to just draw a shape
 and watch it wiggle?
 
 Hope you [enjoy it](https://cbeo.github.io/wiggle-world)!
+
+## Implementation
+
+Wiggle World was creates using the [Haxe](https://haxe.org)
+programming language and the [OpenFL](https://openfl.org) framework.
