@@ -2,9 +2,9 @@
 
 Is just a toy.  I thought about it one day while watching turtles and
 ducks coasting about in a pond. I noticed how, when the turtles were
-deep enough, I couldn't quite see their features, just their shapes as
-they drifted about.  Then I thought, wouldn't it be kinda fun to just
-draw a shape and watch it wiggle?
+deep enough, I couldn't quite see their features. I could just see
+turtle-like shapes as they drifted about.  Then I thought, "wouldn't it
+be kinda fun to draw a shape and watch it spring to life?"
 
 Hope you [enjoy it](https://cbeo.github.io/wiggle-world)!
 
