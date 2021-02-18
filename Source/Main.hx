@@ -108,17 +108,6 @@ class Wiggler extends Sprite
 
     Wiggler.allWigglers.push(this);
 
-    // destroy wigglers with no bones, but let them show up for a second first.
-    if (!staticWiggler)
-      {
-        var bonecount = 0;
-        for (v in bones) bonecount += 1;
-        if (bonecount == 0)
-          {
-            destroyInitiated = true;
-            Actuate.timer(0.5).onComplete( destroy );
-          }
-      }
   }
 
 #if editing
