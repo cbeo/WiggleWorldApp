@@ -8,7 +8,12 @@ and watch it wiggle?
 
 Hope you [enjoy it](https://cbeo.github.io/wiggle-world)!
 
+<img src="https://raw.githubusercontent.com/cbeo/WiggleWorldApp/master/wiggle-world-demo.gif"
+     width="300px"/>
+
+
 ## Implementation
+
 
 Wiggle World was creates using the [Haxe](https://haxe.org)
 programming language and the [OpenFL](https://openfl.org) framework.
