@@ -1094,7 +1094,16 @@ class SplashScreen extends Sprite
         w.y = wiggler.y * vertScale;
         addChild(w);
       }
-    
+
+    var tf = new TextFormat("monospaced", 20, 0xFFFFFF, true);
+    var field1 = new TextField();
+    field1.text = "Draw Shapes Then Watch Them Wiggle! Click to begin.";
+    field1.setTextFormat( tf );
+    field1.width = field1.textWidth;
+    field1.height = field1.textHeight;
+    field1.y = stage.stageHeight - (field1.height + 10);
+    field1.x = (stage.stageWidth - field1.width) / 2;
+    addChild(field1);
   }
 
 }
