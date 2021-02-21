@@ -50,7 +50,7 @@ enum RenderPhase
 { Circles; Clusters; Border;}
 
 
-class Wiggler extends Sprite
+class Wiggler extends openfl.display.Shape
 {
   static inline var BRANCHING_FACTOR = 5;
   static inline var QUADRANT_COEFF = 1.2;
