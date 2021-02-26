@@ -15,5 +15,5 @@ Hope you [enjoy it](https://cbeo.github.io/wiggle-world)!
 ## Implementation
 
 
-Wiggle World was creates using the [Haxe](https://haxe.org)
+Wiggle World was created using the [Haxe](https://haxe.org)
 programming language and the [OpenFL](https://openfl.org) framework.
