@@ -1,10 +1,16 @@
 # Wiggle World
 
-Is just a toy.  I thought about it one day while watching turtles and
-ducks coasting about in a pond. I noticed how, when the turtles were
-deep enough, I couldn't quite see their features. I could just see
-turtle-like shapes as they drifted about.  Then I thought, "wouldn't it
-be kinda fun to draw a shape and watch it spring to life?"
+Wiggle World is just a toy about shape and motion. I thought of it one
+day while watching ducks and turtles at a local pond.  As the ducks
+emerged from the water, their butts would wiggle back and forth
+without the rest of their body seeming to move. As turtles sank deeper
+into the water, I noticed that their features faded as the depth
+increased. Eventually I could see only vague blobs drifting in and out
+of patches of light.  
+
+Shapes and light and motion.  I thought might be fun to draw some
+shapes and whatch them drift and shift and wiggle.  So that's what
+does.
 
 Hope you [enjoy it](https://cbeo.github.io/wiggle-world)!
 
